@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Optional, Sequence
 
+from app.capacity import build_capacity_report
 from app.collectors import (
     discover_manifest,
     discover_official_account,
@@ -27,6 +28,7 @@ DEFAULT_ENTITIES = Path("data/m2/entities.json")
 DEFAULT_EVALUATION = Path("data/m2/evaluation.json")
 DEFAULT_QA_EVALUATION = Path("data/m3/evaluation.json")
 DEFAULT_RELATIONS = Path("data/m4/relations.json")
+DEFAULT_CAPACITY_ASSUMPTIONS = Path("data/m6a/capacity-assumptions.json")
 
 
 def _print(value: object) -> None:
@@ -111,6 +113,14 @@ def build_parser() -> argparse.ArgumentParser:
     serve = subparsers.add_parser("serve", help="Run the local knowledge application")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
+
+    capacity = subparsers.add_parser(
+        "capacity-report", help="Measure local storage and project cloud capacity"
+    )
+    capacity.add_argument("--raw-root", type=Path, default=DEFAULT_RAW_ROOT)
+    capacity.add_argument(
+        "--assumptions", type=Path, default=DEFAULT_CAPACITY_ASSUMPTIONS
+    )
     return parser
 
 
@@ -222,6 +232,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             port=arguments.port,
         )
         return 0
+    elif arguments.command == "capacity-report":
+        result = build_capacity_report(
+            arguments.database, arguments.raw_root, arguments.assumptions
+        )
     else:
         raise AssertionError("Unhandled command")
     _print(result)

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-02T16:55:36+08:00",
+  "report_command": ".venv/bin/python -m app.cli capacity-report --raw-root data/raw --assumptions data/m6a/capacity-assumptions.json",
+  "evidence_labels": {
+    "measured": "local_files_and_sql",
+    "directory_counts": "official_directory_observation_2026-09-02",
+    "projection": "formula_based_low_confidence",
+    "cloud_price": "procurement_date_quote_required"
+  },
+  "official_scope": {
+    "characters": 98,
+    "main_story": 263,
+    "readables": 652,
+    "key_official_videos": 269,
+    "total_sources": 1282
+  },
+  "measured": {
+    "sources": 5,
+    "documents": 15,
+    "chunks": 41,
+    "characters": 17426,
+    "text_utf8_bytes": 48163,
+    "raw_files": 5,
+    "raw_bytes": 376751,
+    "sqlite_bytes": 3067904,
+    "prototype_sparse_vector_json_bytes": 1378626
+  },
+  "direct_projection": {
+    "sources": 1282,
+    "characters": 3058515,
+    "chunks": 7120,
+    "raw_bytes": 67572330,
+    "missing_sample_categories": [],
+    "confidence": "low"
+  },
+  "object_storage_plan": {
+    "snapshot_safety_multiplier": 5.0,
+    "retained_source_versions": 12,
+    "planning_current_snapshot_bytes": 337861650,
+    "planning_retained_bytes": 4054339800,
+    "includes_video_binaries": false
+  },
+  "capacity_scenarios": [
+    {
+      "chunks": 10000,
+      "float32_postgres_planning_bytes": 179193586,
+      "halfvec_postgres_planning_bytes": 112633586
+    },
+    {
+      "chunks": 50000,
+      "float32_postgres_planning_bytes": 895967927,
+      "halfvec_postgres_planning_bytes": 563167927
+    },
+    {
+      "chunks": 100000,
+      "float32_postgres_planning_bytes": 1791935854,
+      "halfvec_postgres_planning_bytes": 1126335854
+    },
+    {
+      "chunks": 1000000,
+      "float32_postgres_planning_bytes": 17919358537,
+      "halfvec_postgres_planning_bytes": 11263358537
+    }
+  ],
+  "decision": {
+    "deployment_region": "mainland_china",
+    "baseline": "private OSS + RDS PostgreSQL + pgvector + private application runtime",
+    "initial_database_storage_gib": 50,
+    "initial_database_compute": "2 vCPU / 8 GiB planning class",
+    "separate_vector_service": false,
+    "architecture_review_chunk_threshold": 1000000,
+    "public_endpoint_created": false,
+    "cloud_resources_created": false
+  },
+  "tests": {
+    "capacity_tests_passed": 3,
+    "full_suite_passed": 49,
+    "failed": 0
+  },
+  "sample_gate_met": true,
+  "cloud_benchmark_gate_met": false
+}

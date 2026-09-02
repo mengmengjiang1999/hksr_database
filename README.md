@@ -46,6 +46,9 @@ curl -X POST http://127.0.0.1:8000/api/admin/sync \
 
 # 运行完整测试
 .venv/bin/python -m unittest discover -s tests -v
+
+# 生成当前数据的云容量报告（不联网）
+.venv/bin/python -m app.cli capacity-report
 ```
 
-详细设计和阶段结果见 [开发计划](docs/knowledge-qa-plan.md) 与 [M5 实施报告](docs/m5-local-product.md)。
+详细设计和阶段结果见 [开发计划](docs/knowledge-qa-plan.md)、[M5 实施报告](docs/m5-local-product.md)与 [M6A 中国大陆云容量报告](docs/m6a-cloud-capacity-validation.md)。
