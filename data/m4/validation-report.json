@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-02T16:02:33+08:00",
+  "curated": {
+    "declared": 8,
+    "imported": 8,
+    "rejected": 0,
+    "explicit": 7,
+    "inferred": 1
+  },
+  "candidates": {
+    "cooccurrence_pending": 308,
+    "visible_by_default": 0
+  },
+  "audit": {
+    "total_relations": 316,
+    "stale": 0
+  },
+  "tests": {
+    "command": "python3 -m unittest discover -s tests -v",
+    "passed": 39,
+    "failed": 0
+  },
+  "sample_gate_met": true,
+  "full_corpus_gate_met": false
+}

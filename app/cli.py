@@ -15,6 +15,7 @@ from app.collectors import (
     parse_sources,
 )
 from app.models.database import Database
+from app.knowledge import audit_relations, build_relations, list_relations, review_relation
 from app.qa import answer_question, evaluate_answers
 from app.retrieval import build_retrieval_index, evaluate_retrieval, hybrid_search
 
@@ -25,6 +26,7 @@ DEFAULT_MANIFEST = Path("data/m0/sample-manifest.json")
 DEFAULT_ENTITIES = Path("data/m2/entities.json")
 DEFAULT_EVALUATION = Path("data/m2/evaluation.json")
 DEFAULT_QA_EVALUATION = Path("data/m3/evaluation.json")
+DEFAULT_RELATIONS = Path("data/m4/relations.json")
 
 
 def _print(value: object) -> None:
@@ -83,6 +85,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     evaluate_qa = subparsers.add_parser("evaluate-qa", help="Evaluate grounded answers")
     evaluate_qa.add_argument("--dataset", type=Path, default=DEFAULT_QA_EVALUATION)
+
+    build_relation_parser = subparsers.add_parser(
+        "build-relations", help="Import curated relations and generate candidates"
+    )
+    build_relation_parser.add_argument("--catalog", type=Path, default=DEFAULT_RELATIONS)
+
+    relation_parser = subparsers.add_parser("relations", help="List evidence-backed relations")
+    relation_parser.add_argument("entity", nargs="?")
+    relation_parser.add_argument("--include-candidates", action="store_true")
+
+    subparsers.add_parser("audit-relations", help="Find relations with stale evidence")
+
+    review = subparsers.add_parser("review-relation", help="Update a relation review decision")
+    review.add_argument("relation_id", type=int)
+    review.add_argument("status", choices=("approved", "pending", "rejected"))
+    review.add_argument("--predicate")
+    review.add_argument("--evidence-level", choices=("explicit", "inferred", "candidate"))
+    review.add_argument("--reasoning")
     return parser
 
 
@@ -157,6 +177,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
     elif arguments.command == "evaluate-qa":
         result = evaluate_answers(database, arguments.dataset)
+    elif arguments.command == "build-relations":
+        result = build_relations(database, arguments.catalog)
+    elif arguments.command == "relations":
+        result = {
+            "entity": arguments.entity,
+            "relations": list_relations(
+                database, arguments.entity, include_candidates=arguments.include_candidates
+            ),
+        }
+    elif arguments.command == "audit-relations":
+        result = audit_relations(database)
+    elif arguments.command == "review-relation":
+        result = review_relation(
+            database, arguments.relation_id, arguments.status,
+            predicate=arguments.predicate, evidence_level=arguments.evidence_level,
+            reasoning=arguments.reasoning,
+        )
     else:
         raise AssertionError("Unhandled command")
     _print(result)

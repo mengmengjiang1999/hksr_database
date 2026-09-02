@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "relations": [
+    {
+      "subject": "姬子", "predicate": "affiliated_with", "object": "星穹列车",
+      "evidence_level": "explicit", "review_status": "approved",
+      "evidence": [{"external_id": "7484", "evidence_contains": "阵营 星穹列车"}]
+    },
+    {
+      "subject": "多么神圣的笑声！", "predicate": "occurs_in", "object": "二相乐园",
+      "evidence_level": "explicit", "review_status": "approved",
+      "evidence": [{"external_id": "7181", "evidence_contains": "任务地区 二相乐园"}]
+    },
+    {
+      "subject": "阿格莱雅", "predicate": "appears_in", "object": "翁法罗斯",
+      "evidence_level": "explicit", "review_status": "approved",
+      "evidence": [{"external_id": "6885", "evidence_contains": "在翁法罗斯"}]
+    },
+    {
+      "subject": "奥赫玛", "predicate": "uses", "object": "万帷网",
+      "evidence_level": "explicit", "review_status": "approved",
+      "evidence": [{"external_id": "61534034", "evidence_contains": "奥赫玛民众也有样学样"}]
+    },
+    {
+      "subject": "匹诺康尼", "predicate": "associated_with", "object": "同谐",
+      "evidence_level": "explicit", "review_status": "approved",
+      "evidence": [{"external_id": "7181", "evidence_contains": "以「同谐」的力量催人入梦"}]
+    },
+    {
+      "subject": "真珠", "predicate": "appears_in", "object": "多么神圣的笑声！",
+      "evidence_level": "explicit", "review_status": "approved",
+      "evidence": [{"external_id": "7181", "evidence_contains": "真珠：再次感谢你们愿意伸出援手"}]
+    },
+    {
+      "subject": "银狼", "predicate": "appears_in", "object": "多么神圣的笑声！",
+      "evidence_level": "explicit", "review_status": "approved",
+      "evidence": [{"external_id": "7181", "evidence_contains": "银狼：我说的老朋友"}]
+    },
+    {
+      "subject": "姬子", "predicate": "associated_with", "object": "幻月游戏",
+      "evidence_level": "inferred", "review_status": "approved", "confidence": 0.8,
+      "reasoning": "角色语音说明姬子参加过上一次幻月游戏，任务文本又记录她参与当前相关事件，因此可确认其与该事件持续关联；这是组合证据推论。",
+      "evidence": [
+        {"external_id": "7484", "evidence_contains": "在上一次幻月游戏里"},
+        {"external_id": "7181", "evidence_contains": "姬子：事到如今，我们更要赢得谒见阿哈的机会"}
+      ]
+    }
+  ]
+}

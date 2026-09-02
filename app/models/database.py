@@ -100,11 +100,34 @@ CREATE TABLE IF NOT EXISTS retrieval_metadata (
     value_json TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS relations (
+    id INTEGER PRIMARY KEY,
+    subject_id INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    predicate TEXT NOT NULL,
+    object_id INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    evidence_level TEXT NOT NULL,
+    review_status TEXT NOT NULL,
+    confidence REAL NOT NULL DEFAULT 1.0,
+    reasoning TEXT NOT NULL DEFAULT '',
+    origin TEXT NOT NULL DEFAULT 'curated',
+    is_stale INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(subject_id, predicate, object_id, origin)
+);
+
+CREATE TABLE IF NOT EXISTS relation_evidence (
+    relation_id INTEGER NOT NULL REFERENCES relations(id) ON DELETE CASCADE,
+    evidence_id TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY(relation_id, evidence_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_sources_status ON sources(status);
 CREATE INDEX IF NOT EXISTS idx_documents_source ON documents(source_id, position);
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id, position);
 CREATE INDEX IF NOT EXISTS idx_aliases_alias ON aliases(alias);
 CREATE INDEX IF NOT EXISTS idx_entity_chunks_chunk ON entity_chunks(chunk_id);
+CREATE INDEX IF NOT EXISTS idx_relations_subject ON relations(subject_id, review_status);
+CREATE INDEX IF NOT EXISTS idx_relations_object ON relations(object_id, review_status);
 """
 
 
@@ -151,19 +174,29 @@ class Database:
         """Replace the small curated entity catalogue and relink all chunks."""
         self.initialize()
         with self.connect() as connection:
-            connection.execute("DELETE FROM entities")
+            connection.execute("DELETE FROM entity_chunks")
+            connection.execute("DELETE FROM aliases")
             entity_count = 0
             alias_count = 0
+            retained_ids = []
             for entity in entities:
-                cursor = connection.execute(
-                    "INSERT INTO entities (canonical_name, entity_type, description) VALUES (?, ?, ?)",
+                connection.execute(
+                    """
+                    INSERT INTO entities (canonical_name, entity_type, description) VALUES (?, ?, ?)
+                    ON CONFLICT(canonical_name, entity_type) DO UPDATE SET
+                        description = excluded.description
+                    """,
                     (
                         entity["canonical_name"],
                         entity["entity_type"],
                         entity.get("description", ""),
                     ),
                 )
-                entity_id = int(cursor.lastrowid)
+                entity_id = int(connection.execute(
+                    "SELECT id FROM entities WHERE canonical_name = ? AND entity_type = ?",
+                    (entity["canonical_name"], entity["entity_type"]),
+                ).fetchone()["id"])
+                retained_ids.append(entity_id)
                 entity_count += 1
                 names = [(entity["canonical_name"], "canonical")]
                 names.extend(
@@ -182,6 +215,15 @@ class Database:
                         (entity_id, alias, alias_type),
                     )
                     alias_count += 1
+
+            if retained_ids:
+                placeholders = ",".join("?" for _ in retained_ids)
+                connection.execute(
+                    "DELETE FROM entities WHERE id NOT IN (%s)" % placeholders,
+                    retained_ids,
+                )
+            else:
+                connection.execute("DELETE FROM entities")
 
             rows = connection.execute(
                 """
@@ -641,6 +683,13 @@ class Database:
                 ).fetchone()[0],
                 "semantic_vectors": connection.execute(
                     "SELECT COUNT(*) FROM chunk_vectors"
+                ).fetchone()[0],
+                "relations": connection.execute("SELECT COUNT(*) FROM relations").fetchone()[0],
+                "approved_relations": connection.execute(
+                    "SELECT COUNT(*) FROM relations WHERE review_status = 'approved' AND is_stale = 0"
+                ).fetchone()[0],
+                "pending_relations": connection.execute(
+                    "SELECT COUNT(*) FROM relations WHERE review_status = 'pending'"
                 ).fetchone()[0],
             }
             fts_exists = connection.execute(
