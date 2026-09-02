@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-02T15:25:00+08:00",
+  "m0_commit": "0bef080",
+  "tests": {
+    "command": "python3 -m unittest discover -s tests -v",
+    "passed": 21,
+    "failed": 0
+  },
+  "sample_pipeline": {
+    "sources": 5,
+    "parsed_sources": 5,
+    "documents": 15,
+    "evidence_eligible_documents": 10,
+    "chunks": 27,
+    "fts_rows": 27,
+    "parse_failures": 0
+  },
+  "incremental_sync": {
+    "attempted": 5,
+    "content_changed": 0,
+    "content_unchanged": 5,
+    "failed": 0,
+    "volatile_video_fields_ignored": true
+  },
+  "live_discovery": {
+    "wiki_search": {
+      "query": "阿格莱雅",
+      "results": 20,
+      "registered_wiki_sources": 7,
+      "skipped_article_results": 13
+    },
+    "official_account": {
+      "uid": "288909600",
+      "results": 20,
+      "registered_verified_sources": 20,
+      "skipped_unverified": 0
+    }
+  },
+  "search_smoke_tests": [
+    {
+      "query": "孤独逐火",
+      "matched_source_kind": "wiki_readable",
+      "matched_external_id": "6885"
+    },
+    {
+      "query": "万帷网",
+      "matched_source_kind": "official_video",
+      "matched_external_id": "61534034"
+    },
+    {
+      "query": "告死魔",
+      "matched_source_kinds": [
+        "wiki_quest",
+        "wiki_character"
+      ]
+    }
+  ],
+  "m1_threshold_met": true
+}
