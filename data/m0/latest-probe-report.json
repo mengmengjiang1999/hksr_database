@@ -1,0 +1,346 @@
+{
+  "discovery": [
+    {
+      "key": "wiki_search_aglaea",
+      "response": {
+        "byte_count": 16972,
+        "sha256": "75c35d09fc8338446c1185c2cfb72136cfaa9d9d648b9355e69a03fa60ae150e"
+      },
+      "status": "pass",
+      "summary": {
+        "channel_counts": {
+          "剧情CG动画": 1,
+          "员工": 1,
+          "家具": 1,
+          "游戏内容一览": 1,
+          "游戏视频": 11,
+          "装扮": 1,
+          "角色": 1,
+          "阅读物": 1,
+          "阿格莱雅": 2,
+          "黄金裔": 1,
+          "黄金裔WIKI": 1
+        },
+        "has_article_results": true,
+        "has_wiki_results": true,
+        "reported_total": 33,
+        "result_count": 20
+      }
+    },
+    {
+      "key": "official_account_posts",
+      "response": {
+        "byte_count": 194488,
+        "sha256": "b0c7d5de5d33aabfd8a6a0076f4637f95a1c378dc19eb3999b6cbcf3611c6283"
+      },
+      "status": "pass",
+      "summary": {
+        "has_next_page": true,
+        "next_offset_present": true,
+        "official_result_count": 20,
+        "result_count": 20,
+        "video_result_count": 5
+      }
+    }
+  ],
+  "generated_at": "2026-09-02T07:06:34.638451+00:00",
+  "manifest_version": 1,
+  "schema_version": 1,
+  "summary": {
+    "discovery_count": 2,
+    "m0_threshold_met": true,
+    "passed_discovery": 2,
+    "passed_targets": 5,
+    "target_count": 5
+  },
+  "targets": [
+    {
+      "api_url": "https://act-api-takumi-static.mihoyo.com/common/blackboard/sr_wiki/v1/content/info?app_sn=sr_wiki&content_id=7484",
+      "extraction": {
+        "channels": [
+          "角色",
+          "游戏图鉴"
+        ],
+        "created_at": "2026-05-20 08:21:32",
+        "layout": "rpg_template",
+        "modules": [
+          {
+            "components": [
+              "character_info"
+            ],
+            "hidden": false,
+            "id": "11",
+            "name": "角色信息"
+          },
+          {
+            "components": [
+              "role_ascension"
+            ],
+            "hidden": false,
+            "id": "12",
+            "name": "角色晋阶"
+          },
+          {
+            "components": [
+              "trace_graph"
+            ],
+            "hidden": false,
+            "id": "13",
+            "name": "角色行迹"
+          },
+          {
+            "components": [
+              "character_rich"
+            ],
+            "hidden": false,
+            "id": "14",
+            "name": "角色星魂"
+          },
+          {
+            "components": [
+              "character_rich"
+            ],
+            "hidden": false,
+            "id": "15",
+            "name": "光锥推荐"
+          },
+          {
+            "components": [
+              "character_rich"
+            ],
+            "hidden": false,
+            "id": "16",
+            "name": "遗器推荐"
+          },
+          {
+            "components": [
+              "character_rich"
+            ],
+            "hidden": false,
+            "id": "17",
+            "name": "配队推荐"
+          },
+          {
+            "components": [
+              "character_strategy"
+            ],
+            "hidden": false,
+            "id": "18",
+            "name": "角色攻略推荐"
+          },
+          {
+            "components": [
+              "character_story"
+            ],
+            "hidden": false,
+            "id": "19",
+            "name": "角色故事"
+          },
+          {
+            "components": [
+              "role_voice"
+            ],
+            "hidden": false,
+            "id": "20",
+            "name": "角色语音"
+          },
+          {
+            "components": [
+              "character_relation"
+            ],
+            "hidden": true,
+            "id": "21",
+            "name": "角色关系"
+          },
+          {
+            "components": [
+              "character_analysis"
+            ],
+            "hidden": true,
+            "id": "22",
+            "name": "角色解析"
+          },
+          {
+            "components": [
+              "character_strategy"
+            ],
+            "hidden": true,
+            "id": "23",
+            "name": "角色考据"
+          },
+          {
+            "components": [
+              "character_gallery"
+            ],
+            "hidden": false,
+            "id": "24",
+            "name": "角色画廊"
+          }
+        ],
+        "provider": "mihoyo_wiki",
+        "source_id": "7484",
+        "summary": "角色-姬子•启行",
+        "template_type": "RpgTemplateTypeGoldTemp",
+        "text": {
+          "text_character_count": 31504,
+          "text_value_count": 1859
+        },
+        "title": "姬子•启行",
+        "updated_at": "2026-08-26 12:12:16",
+        "version": 10
+      },
+      "key": "wiki_character_7484",
+      "page_url": "https://bbs.mihoyo.com/sr/wiki/content/7484/detail?bbs_presentation_style=no_header",
+      "response": {
+        "byte_count": 217546,
+        "sha256": "4338e7f162a4c009d9b099cf8aba64b045240c8cb906206532fd39e4e7785f11"
+      },
+      "source_kind": "wiki_character",
+      "status": "pass"
+    },
+    {
+      "api_url": "https://act-api-takumi-static.mihoyo.com/common/blackboard/sr_wiki/v1/content/info?app_sn=sr_wiki&content_id=6885",
+      "extraction": {
+        "channels": [
+          "阅读物",
+          "游戏图鉴"
+        ],
+        "created_at": "2026-02-21 19:36:16",
+        "layout": "html_tabs",
+        "modules": [
+          {
+            "components": [
+              "html"
+            ],
+            "hidden": false,
+            "id": "",
+            "name": "页签1"
+          }
+        ],
+        "provider": "mihoyo_wiki",
+        "source_id": "6885",
+        "summary": "阅读物-一页寄语：阿格莱雅",
+        "template_type": "RpgTemplateTypeDefault",
+        "text": {
+          "text_character_count": 349,
+          "text_value_count": 1
+        },
+        "title": "一页寄语：阿格莱雅",
+        "updated_at": "2026-02-21 19:36:16",
+        "version": 1
+      },
+      "key": "wiki_readable_6885",
+      "page_url": "https://bbs.mihoyo.com/sr/wiki/content/6885/detail?bbs_presentation_style=no_header",
+      "response": {
+        "byte_count": 13200,
+        "sha256": "5b0644ffd4b7328bdc2f6ea28b1c4df66765b3fee9c7be773072b8f5f92fc9ea"
+      },
+      "source_kind": "wiki_readable",
+      "status": "pass"
+    },
+    {
+      "api_url": "https://act-api-takumi-static.mihoyo.com/common/blackboard/sr_wiki/v1/content/info?app_sn=sr_wiki&content_id=7181",
+      "extraction": {
+        "channels": [
+          "任务",
+          "游戏图鉴"
+        ],
+        "created_at": "2026-04-14 17:46:15",
+        "layout": "html_tabs",
+        "modules": [
+          {
+            "components": [
+              "html"
+            ],
+            "hidden": false,
+            "id": "",
+            "name": "页签1"
+          }
+        ],
+        "provider": "mihoyo_wiki",
+        "source_id": "7181",
+        "summary": "多么神圣的笑声！",
+        "template_type": "RpgTemplateTypeDefault",
+        "text": {
+          "text_character_count": 6965,
+          "text_value_count": 1
+        },
+        "title": "多么神圣的笑声！",
+        "updated_at": "2026-04-14 17:46:15",
+        "version": 1
+      },
+      "key": "wiki_quest_7181",
+      "page_url": "https://bbs.mihoyo.com/sr/wiki/content/7181/detail?bbs_presentation_style=no_header",
+      "response": {
+        "byte_count": 145863,
+        "sha256": "808a2cc8e0da832e51e06ea1051c1da5e4ab4a9a7887401263bafc04ed3fa662"
+      },
+      "source_kind": "wiki_quest",
+      "status": "pass"
+    },
+    {
+      "api_url": "https://bbs-api.miyoushe.com/post/wapi/getPostFull?gids=6&post_id=61534034&read=1",
+      "extraction": {
+        "certification": "崩坏：星穹铁道官方账号",
+        "created_at": 1738123213,
+        "forum": "官方",
+        "has_machine_readable_subtitles": false,
+        "official": true,
+        "provider": "miyoushe",
+        "publisher": "崩坏星穹铁道",
+        "source_id": "61534034",
+        "subtitle_fields": [],
+        "text": {
+          "text_character_count": 425,
+          "text_value_count": 27
+        },
+        "title": "走近星穹：「阿格莱雅：文明上网，人人有责」",
+        "updated_at": 1788058456,
+        "video_count": 1,
+        "video_ids": [
+          "1884096971862503424"
+        ],
+        "view_type": 5
+      },
+      "key": "official_video_61534034",
+      "page_url": "https://www.miyoushe.com/sr/article/61534034",
+      "response": {
+        "byte_count": 10247,
+        "sha256": "aa5515481d54e2dd52d0d0f2bc2044fdd58a4a080b6ee10515e2356352d2c044"
+      },
+      "source_kind": "official_video",
+      "status": "pass"
+    },
+    {
+      "api_url": "https://bbs-api.miyoushe.com/post/wapi/getPostFull?gids=6&post_id=77649744&read=1",
+      "extraction": {
+        "certification": "崩坏：星穹铁道官方账号",
+        "created_at": 1787288412,
+        "forum": "官方",
+        "has_machine_readable_subtitles": false,
+        "official": true,
+        "provider": "miyoushe",
+        "publisher": "崩坏星穹铁道",
+        "source_id": "77649744",
+        "subtitle_fields": [],
+        "text": {
+          "text_character_count": 347,
+          "text_value_count": 9
+        },
+        "title": "「挥掷千星的筹码」开拓任务说明",
+        "updated_at": 1788292496,
+        "video_count": 0,
+        "video_ids": [],
+        "view_type": 1
+      },
+      "key": "official_article_77649744",
+      "page_url": "https://www.miyoushe.com/sr/article/77649744",
+      "response": {
+        "byte_count": 7725,
+        "sha256": "7c67ef3b6e5135d037d3352f24ea6cc50007317fb1a9830758dfce500aa8b64b"
+      },
+      "source_kind": "official_article",
+      "status": "pass"
+    }
+  ]
+}

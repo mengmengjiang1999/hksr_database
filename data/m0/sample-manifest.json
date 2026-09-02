@@ -1,0 +1,70 @@
+{
+  "manifest_version": 1,
+  "description": "M0 feasibility samples. The probe stores metadata and statistics, not raw source bodies.",
+  "targets": [
+    {
+      "key": "wiki_character_7484",
+      "source_kind": "wiki_character",
+      "parser": "wiki_content",
+      "expected_title": "姬子•启行",
+      "page_url": "https://bbs.mihoyo.com/sr/wiki/content/7484/detail?bbs_presentation_style=no_header",
+      "api_url": "https://act-api-takumi-static.mihoyo.com/common/blackboard/sr_wiki/v1/content/info?app_sn=sr_wiki&content_id=7484"
+    },
+    {
+      "key": "wiki_readable_6885",
+      "source_kind": "wiki_readable",
+      "parser": "wiki_content",
+      "expected_title": "一页寄语：阿格莱雅",
+      "page_url": "https://bbs.mihoyo.com/sr/wiki/content/6885/detail?bbs_presentation_style=no_header",
+      "api_url": "https://act-api-takumi-static.mihoyo.com/common/blackboard/sr_wiki/v1/content/info?app_sn=sr_wiki&content_id=6885"
+    },
+    {
+      "key": "wiki_quest_7181",
+      "source_kind": "wiki_quest",
+      "parser": "wiki_content",
+      "expected_title": "多么神圣的笑声！",
+      "page_url": "https://bbs.mihoyo.com/sr/wiki/content/7181/detail?bbs_presentation_style=no_header",
+      "api_url": "https://act-api-takumi-static.mihoyo.com/common/blackboard/sr_wiki/v1/content/info?app_sn=sr_wiki&content_id=7181"
+    },
+    {
+      "key": "official_video_61534034",
+      "source_kind": "official_video",
+      "parser": "miyoushe_post",
+      "expected_title": "走近星穹：「阿格莱雅：文明上网，人人有责」",
+      "page_url": "https://www.miyoushe.com/sr/article/61534034",
+      "api_url": "https://bbs-api.miyoushe.com/post/wapi/getPostFull?gids=6&post_id=61534034&read=1",
+      "headers": {
+        "Origin": "https://www.miyoushe.com",
+        "Referer": "https://www.miyoushe.com/"
+      }
+    },
+    {
+      "key": "official_article_77649744",
+      "source_kind": "official_article",
+      "parser": "miyoushe_post",
+      "expected_title": "「挥掷千星的筹码」开拓任务说明",
+      "page_url": "https://www.miyoushe.com/sr/article/77649744",
+      "api_url": "https://bbs-api.miyoushe.com/post/wapi/getPostFull?gids=6&post_id=77649744&read=1",
+      "headers": {
+        "Origin": "https://www.miyoushe.com",
+        "Referer": "https://www.miyoushe.com/"
+      }
+    }
+  ],
+  "discovery": [
+    {
+      "key": "wiki_search_aglaea",
+      "parser": "wiki_search",
+      "api_url": "https://act-api-takumi.mihoyo.com/common/blackboard/sr_wiki/v1/search/content?app_sn=sr_wiki&keyword=%E9%98%BF%E6%A0%BC%E8%8E%B1%E9%9B%85&page=1&page_size=20"
+    },
+    {
+      "key": "official_account_posts",
+      "parser": "official_account",
+      "api_url": "https://bbs-api.miyoushe.com/painter/wapi/userPostList?size=20&uid=288909600",
+      "headers": {
+        "Origin": "https://www.miyoushe.com",
+        "Referer": "https://www.miyoushe.com/"
+      }
+    }
+  ]
+}
