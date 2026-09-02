@@ -112,6 +112,13 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def stable_evidence_id(
+    provider: str, external_id: str, document_key: str, chunk_key: str
+) -> str:
+    """Build a stable citation identifier without relying on SQLite row IDs."""
+    return "%s:%s:%s:%s" % (provider, external_id, document_key, chunk_key)
+
+
 class Database:
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
@@ -261,7 +268,9 @@ class Database:
             rows = connection.execute(
                 """
                 SELECT c.id AS chunk_id, c.text, c.section_path, c.speaker,
-                       s.id AS source_id, s.external_id, s.title, s.page_url,
+                       c.chunk_key, c.position AS chunk_position,
+                       d.id AS document_id, d.document_key,
+                       s.id AS source_id, s.provider, s.external_id, s.title, s.page_url,
                        s.source_kind, s.version, s.official_status,
                        v.vector_json, v.norm
                 FROM chunks c
@@ -293,8 +302,51 @@ class Database:
             item = dict(row)
             item["vector"] = json.loads(item.pop("vector_json")) if item["vector_json"] else {}
             item["entities"] = entities.get(int(item["chunk_id"]), [])
+            item["evidence_id"] = stable_evidence_id(
+                item["provider"], item["external_id"], item["document_key"], item["chunk_key"]
+            )
             output.append(item)
         return output
+
+    def evidence_context(self, evidence_id: str, window: int = 1) -> Dict[str, Any]:
+        """Return one evidence item plus neighbouring chunks in its document."""
+        if window < 0:
+            raise ValueError("Context window cannot be negative")
+        rows = self.retrieval_rows()
+        target = next((row for row in rows if row["evidence_id"] == evidence_id), None)
+        if target is None:
+            raise KeyError("Unknown evidence id: %s" % evidence_id)
+        with self.connect() as connection:
+            neighbours = connection.execute(
+                """
+                SELECT c.chunk_key, c.position, c.text
+                FROM chunks c
+                WHERE c.document_id = ? AND c.position BETWEEN ? AND ?
+                ORDER BY c.position
+                """,
+                (
+                    target["document_id"],
+                    max(0, int(target["chunk_position"]) - window),
+                    int(target["chunk_position"]) + window,
+                ),
+            ).fetchall()
+        context = []
+        for row in neighbours:
+            context.append(
+                {
+                    "evidence_id": stable_evidence_id(
+                        target["provider"], target["external_id"],
+                        target["document_key"], row["chunk_key"]
+                    ),
+                    "position": int(row["position"]),
+                    "text": row["text"],
+                    "is_target": row["chunk_key"] == target["chunk_key"],
+                }
+            )
+        return {
+            **{key: value for key, value in target.items() if key not in {"vector", "norm"}},
+            "context": context,
+        }
 
     def retrieval_metadata(self) -> Dict[str, Any]:
         self.initialize()

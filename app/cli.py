@@ -15,6 +15,7 @@ from app.collectors import (
     parse_sources,
 )
 from app.models.database import Database
+from app.qa import answer_question, evaluate_answers
 from app.retrieval import build_retrieval_index, evaluate_retrieval, hybrid_search
 
 
@@ -23,6 +24,7 @@ DEFAULT_RAW_ROOT = Path("data/raw")
 DEFAULT_MANIFEST = Path("data/m0/sample-manifest.json")
 DEFAULT_ENTITIES = Path("data/m2/entities.json")
 DEFAULT_EVALUATION = Path("data/m2/evaluation.json")
+DEFAULT_QA_EVALUATION = Path("data/m3/evaluation.json")
 
 
 def _print(value: object) -> None:
@@ -69,6 +71,18 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate = subparsers.add_parser("evaluate", help="Evaluate evidence retrieval")
     evaluate.add_argument("--dataset", type=Path, default=DEFAULT_EVALUATION)
     evaluate.add_argument("--mode", choices=("hybrid", "lexical", "semantic"), default="hybrid")
+
+    ask = subparsers.add_parser("ask", help="Return an evidence-grounded extractive answer")
+    ask.add_argument("question")
+    ask.add_argument("--limit", type=int, default=8)
+    ask.add_argument("--minimum-score", type=float, default=0.18)
+    ask.add_argument("--source-kind", action="append")
+    ask.add_argument("--context", action="append", choices=(
+        "in_game", "official_supplement", "promotional", "preview", "development", "unknown"
+    ))
+
+    evaluate_qa = subparsers.add_parser("evaluate-qa", help="Evaluate grounded answers")
+    evaluate_qa.add_argument("--dataset", type=Path, default=DEFAULT_QA_EVALUATION)
     return parser
 
 
@@ -132,6 +146,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         }
     elif arguments.command == "evaluate":
         result = evaluate_retrieval(database, arguments.dataset, arguments.mode)
+    elif arguments.command == "ask":
+        result = answer_question(
+            database,
+            arguments.question,
+            limit=arguments.limit,
+            minimum_score=arguments.minimum_score,
+            source_kinds=arguments.source_kind,
+            contexts=arguments.context,
+        )
+    elif arguments.command == "evaluate-qa":
+        result = evaluate_answers(database, arguments.dataset)
     else:
         raise AssertionError("Unhandled command")
     _print(result)

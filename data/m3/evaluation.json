@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "notes": "M3 确定性抽取回答评测；正确性只检查首条回答引用是否包含人工标注证据。",
+  "cases": [
+    {"id": "direct-01", "question": "姬子属于哪个阵营？", "evidence_contains": "阵营 星穹列车"},
+    {"id": "direct-02", "question": "姬子在战斗中的定位是什么？", "evidence_contains": "可操控机甲并提供支援攻击"},
+    {"id": "direct-03", "question": "姬子在房间里继续画什么梦想？", "evidence_contains": "启程远航的画面"},
+    {"id": "direct-04", "question": "告死魔在鸽川做了什么？", "evidence_contains": "在鸽川大肆屠戮"},
+    {"id": "direct-05", "question": "姬子如何描述自己和开拓者的关系？", "evidence_contains": "永远与你眺望同一风景的家人"},
+    {"id": "direct-06", "question": "阿格莱雅的一页寄语怎么获得？", "evidence_contains": "消耗【时光硕果】与阿格莱雅对话后获取"},
+    {"id": "direct-07", "question": "多么神圣的笑声发生在哪个地区？", "evidence_contains": "任务地区 二相乐园"},
+    {"id": "direct-08", "question": "真珠接下来准备做什么？", "evidence_contains": "开始进行之后的决策推演"},
+    {"id": "direct-09", "question": "银狼口中的老朋友是谁？", "evidence_contains": "应星，好久不见了"},
+    {"id": "direct-10", "question": "匹诺康尼的家族怎样安抚人的痛苦？", "evidence_contains": "以「同谐」的力量催人入梦"},
+    {"id": "direct-11", "question": "真珠作为智械被分配的母题是什么？", "evidence_contains": "被分配的母题是「解析艺术」"},
+    {"id": "direct-12", "question": "不死途为什么不鼓励年轻人成为游侠？", "evidence_contains": "那条路意味着失去、痛苦和复仇"},
+    {"id": "direct-13", "question": "奥赫玛民众在浴场用万帷网做什么？", "evidence_contains": "使用万帷网放松身心"},
+    {"id": "direct-14", "question": "挥掷千星的筹码何时开放？", "evidence_contains": "2026/08/26 4.5版本更新后永久开放"},
+    {"id": "direct-15", "question": "挥掷千星的筹码要求多少开拓等级？", "evidence_contains": "开拓等级≥21级"},
+    {"id": "none-01", "question": "卡芙卡出生在哪颗星球？", "unanswerable": true},
+    {"id": "none-02", "question": "景元养的宠物叫什么？", "unanswerable": true},
+    {"id": "none-03", "question": "黑塔空间站是谁建造的？", "unanswerable": true}
+  ]
+}
