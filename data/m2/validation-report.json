@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-02T15:38:13+08:00",
+  "dataset": {
+    "cases": 36,
+    "answerable": 33,
+    "unanswerable": 3,
+    "sources": 5,
+    "chunks": 41
+  },
+  "index": {
+    "fts_rows": 41,
+    "semantic_vectors": 41,
+    "entities": 35,
+    "aliases": 45,
+    "entity_chunk_links": 243
+  },
+  "metrics": {
+    "lexical": {"top1_accuracy": 0.8485, "top5_recall": 0.9091, "unanswerable_accuracy": 0.6667},
+    "semantic": {"top1_accuracy": 0.7576, "top5_recall": 1.0, "unanswerable_accuracy": 1.0},
+    "hybrid": {"top1_accuracy": 0.8788, "top5_recall": 1.0, "unanswerable_accuracy": 1.0}
+  },
+  "tests": {
+    "command": "python3 -m unittest discover -s tests -v",
+    "passed": 26,
+    "failed": 0
+  },
+  "sample_gate_met": true,
+  "full_corpus_gate_met": false,
+  "full_corpus_gate_reason": "Only five sources and 41 chunks are currently available."
+}
