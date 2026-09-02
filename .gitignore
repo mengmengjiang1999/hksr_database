@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+*.egg-info/
 
 # Local source mirrors and generated indexes are not versioned.
 data/raw/

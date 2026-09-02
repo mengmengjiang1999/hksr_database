@@ -3,6 +3,21 @@ name = "hksr-database"
 version = "0.1.0"
 description = "Evidence-grounded Honkai: Star Rail lore knowledge base"
 requires-python = ">=3.9"
+dependencies = [
+    "fastapi>=0.112,<1",
+    "httpx>=0.27,<1",
+    "uvicorn>=0.30,<1",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.fastapi]
+entrypoint = "app.api.main:app"
 
 [tool.unittest]
 start-directory = "tests"

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>星穹档案室</title>
+  <style>
+    :root { color-scheme: dark; --ink:#eef2ff; --muted:#aeb8d3; --gold:#f2cc7d; --line:#303b5d; --panel:#11182aee; --blue:#80bfff; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; color:var(--ink); font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;
+      background:radial-gradient(circle at 20% 0,#29375f 0,transparent 35%),radial-gradient(circle at 90% 20%,#473353 0,transparent 30%),#080c17; }
+    body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.32;
+      background-image:radial-gradient(#fff 0.7px,transparent 0.8px); background-size:34px 34px; }
+    main { width:min(1080px,calc(100% - 32px)); margin:auto; padding:54px 0 80px; position:relative; }
+    header { display:flex; justify-content:space-between; gap:24px; align-items:end; margin-bottom:30px; }
+    .eyebrow { color:var(--gold); letter-spacing:.2em; font-size:12px; text-transform:uppercase; }
+    h1 { margin:8px 0 5px; font-family:Georgia,"Songti SC",serif; font-size:clamp(32px,6vw,62px); font-weight:500; }
+    header p { color:var(--muted); margin:0; }
+    .status-pill { border:1px solid var(--line); border-radius:999px; padding:9px 14px; color:var(--muted); background:#0a1020; white-space:nowrap; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:18px; box-shadow:0 22px 70px #0008; backdrop-filter:blur(16px); }
+    form { display:flex; gap:12px; padding:18px; }
+    input { flex:1; min-width:0; border:1px solid #455174; background:#080e1c; color:var(--ink); border-radius:12px; padding:15px 16px; font-size:16px; outline:none; }
+    input:focus { border-color:var(--blue); box-shadow:0 0 0 3px #80bfff22; }
+    button { border:0; border-radius:12px; padding:0 22px; color:#101522; background:linear-gradient(135deg,#f7d999,#d9aa59); font-weight:700; cursor:pointer; }
+    button:disabled { opacity:.55; cursor:wait; }
+    .examples { display:flex; gap:8px; padding:0 18px 18px; overflow:auto; }
+    .examples button { color:var(--muted); background:#1a233a; border:1px solid var(--line); padding:8px 12px; font-weight:400; white-space:nowrap; }
+    #result { margin-top:22px; display:grid; gap:16px; }
+    .answer { padding:24px; }
+    .answer-head { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+    .badge { display:inline-flex; border-radius:999px; padding:6px 10px; font-size:12px; letter-spacing:.08em; background:#19304c; color:#a9d5ff; }
+    .badge.uncertain { background:#472d27; color:#ffc0a5; }
+    .answer-text { font-family:Georgia,"Songti SC",serif; font-size:21px; line-height:1.8; margin:18px 0; white-space:pre-wrap; }
+    .meta { color:var(--muted); font-size:13px; }
+    .claim { border-top:1px solid var(--line); padding-top:18px; margin-top:18px; }
+    details { margin-top:10px; border:1px solid var(--line); border-radius:12px; background:#0b1222; }
+    summary { cursor:pointer; padding:13px 15px; color:var(--gold); }
+    .citation { padding:0 15px 15px; }
+    blockquote { margin:8px 0 14px; padding:12px 15px; border-left:3px solid var(--gold); background:#131c30; color:#dfe6f8; line-height:1.7; white-space:pre-wrap; }
+    a { color:var(--blue); }
+    .relations { padding:20px 24px; }
+    .relations h2 { font-size:16px; margin:0 0 14px; color:var(--muted); }
+    .relation-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; }
+    .relation-card { border:1px solid var(--line); border-radius:12px; padding:13px; background:#0b1222; }
+    .relation-card strong { color:var(--gold); }
+    .toolbar { display:flex; justify-content:space-between; margin-top:24px; gap:12px; }
+    .toolbar button { padding:10px 14px; background:#1a233a; color:var(--muted); border:1px solid var(--line); }
+    pre { overflow:auto; padding:16px; background:#080e1c; border-radius:12px; color:#b8c7e8; font-size:12px; }
+    .error { padding:18px; border-color:#743d47; color:#ffc1cb; }
+    @media(max-width:640px) { header{align-items:start;flex-direction:column} form{flex-direction:column} form button{height:48px} main{padding-top:28px} }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><div class="eyebrow">Evidence archive · local</div><h1>星穹档案室</h1><p>所有结论均需经过官方文本证据验证</p></div>
+    <div class="status-pill" id="health">正在连接本地知识库…</div>
+  </header>
+  <section class="panel">
+    <form id="ask-form"><input id="question" autocomplete="off" maxlength="1000" placeholder="例如：姬子如何看待三月七的成长？"><button id="submit">检索证据</button></form>
+    <div class="examples">
+      <button data-q="小三月的纯真有没有失去？">小三月的纯真</button>
+      <button data-q="阿格莱雅的一页寄语如何获得？">阿格莱雅的寄语</button>
+      <button data-q="真珠作为智械的母题是什么？">真珠的母题</button>
+    </div>
+  </section>
+  <div id="result"></div>
+  <div class="toolbar"><span class="meta">本地 MVP · 不使用模型记忆补充事实</span><button id="show-status">查看数据库状态</button></div>
+  <pre id="admin-status" hidden></pre>
+</main>
+<script>
+const $=s=>document.querySelector(s), esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const labels={explicit:'官方原文',inferred:'证据推理',conflicted:'资料冲突',uncertain:'无法确认'};
+const relationLabels={affiliated_with:'隶属或关联于',appears_in:'出现于',occurs_in:'发生于',uses:'使用',associated_with:'关联于',co_occurs_with:'共同出现'};
+const evidenceLabels={explicit:'原文明示',inferred:'证据推导',candidate:'待审核候选'};
+const directionLabels={outgoing:'正向关系',incoming:'反向关系'};
+async function jsonFetch(url,options){const r=await fetch(url,options);let data;try{data=await r.json()}catch{throw new Error('服务返回了无法解析的内容')}if(!r.ok)throw new Error(data.detail||`请求失败 (${r.status})`);return data}
+function citationHTML(c){const neighbours=(c.adjacent_context||[]).map(x=>`<blockquote>${esc(x.text)}</blockquote>`).join('');return `<details><summary>${esc(c.source_title)} · ${esc(c.section_path)}</summary><div class="citation"><div class="meta">${esc(c.source_kind)} · 版本 ${esc(c.version||'未标注')} · ${esc(c.context_type)}</div><blockquote>${esc(c.quote)}</blockquote>${neighbours?`<div class="meta">相邻上下文</div>${neighbours}`:''}<a href="${esc(c.url)}" target="_blank" rel="noreferrer">打开官方原页面 ↗</a></div></details>`}
+function relationHTML(group){const cards=(group.relations||[]).map(r=>`<div class="relation-card"><div class="meta">${esc(evidenceLabels[r.evidence_level]||r.evidence_level)} · ${esc(directionLabels[r.direction]||r.direction)}</div><strong>${esc(r.subject_name)}</strong> ${esc(relationLabels[r.predicate]||r.predicate)} <strong>${esc(r.object_name)}</strong>${r.reasoning?`<p class="meta">推理说明：${esc(r.reasoning)}</p>`:''}</div>`).join('');return cards?`<section class="panel relations"><h2>${esc(group.entity.canonical_name)} · 已审核关联</h2><div class="relation-grid">${cards}</div></section>`:''}
+function render(data){const claims=(data.claims||[]).map(c=>`<div class="claim"><div class="meta">主张类型：${esc(c.type)} · 支持检查：${esc(c.support_check)}</div><div>${esc(c.text)}</div>${(c.citations||[]).map(citationHTML).join('')}</div>`).join('');const related=(data.related_entities||[]).map(relationHTML).join('');$('#result').innerHTML=`<section class="panel answer"><div class="answer-head"><span class="badge ${esc(data.status)}">${esc(labels[data.status]||data.status)}</span><span class="meta">最高检索分 ${esc(data.retrieval?.top_score)}</span></div><div class="answer-text">${esc(data.answer)}</div>${claims}</section>${related}`}
+$('#ask-form').addEventListener('submit',async e=>{e.preventDefault();const q=$('#question').value.trim();if(!q)return;const b=$('#submit');b.disabled=true;b.textContent='检索中…';try{render(await jsonFetch('/api/ask',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question:q,contexts:['in_game']})}))}catch(err){$('#result').innerHTML=`<div class="panel error">${esc(err.message)}</div>`}finally{b.disabled=false;b.textContent='检索证据'}});
+document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{$('#question').value=b.dataset.q;$('#ask-form').requestSubmit()});
+$('#show-status').onclick=async()=>{const p=$('#admin-status');if(!p.hidden){p.hidden=true;return}try{p.textContent=JSON.stringify(await jsonFetch('/api/admin/status'),null,2);p.hidden=false}catch(e){p.textContent=e.message;p.hidden=false}};
+jsonFetch('/api/health').then(()=>{$('#health').textContent='● 本地服务已连接'}).catch(()=>{$('#health').textContent='● 无法连接本地服务'});
+</script>
+</body>
+</html>

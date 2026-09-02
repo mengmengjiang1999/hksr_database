@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-02T17:00:00+08:00",
+  "runtime": {
+    "default_host": "127.0.0.1",
+    "framework": "FastAPI",
+    "public_deployment": false
+  },
+  "database": {
+    "sources": 5,
+    "chunks": 41,
+    "entities": 35,
+    "approved_relations": 8,
+    "pending_relations": 308,
+    "stale_relations": 0
+  },
+  "tests": {
+    "command": ".venv/bin/python -m unittest discover -s tests -v",
+    "passed": 46,
+    "failed": 0
+  },
+  "browser_smoke": {
+    "home_and_health": true,
+    "grounded_answer": true,
+    "expandable_citation_and_context": true,
+    "approved_relation_card": true,
+    "admin_status": true
+  },
+  "sample_gate_met": true,
+  "full_corpus_gate_met": false
+}

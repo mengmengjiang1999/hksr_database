@@ -103,6 +103,14 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--predicate")
     review.add_argument("--evidence-level", choices=("explicit", "inferred", "candidate"))
     review.add_argument("--reasoning")
+
+    initialize = subparsers.add_parser("initialize", help="Build all local indexes and relations")
+    initialize.add_argument("--entities", type=Path, default=DEFAULT_ENTITIES)
+    initialize.add_argument("--relations", type=Path, default=DEFAULT_RELATIONS)
+
+    serve = subparsers.add_parser("serve", help="Run the local knowledge application")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
     return parser
 
 
@@ -194,6 +202,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             predicate=arguments.predicate, evidence_level=arguments.evidence_level,
             reasoning=arguments.reasoning,
         )
+    elif arguments.command == "initialize":
+        result = {
+            "fts_rows": database.rebuild_fts(),
+            "retrieval": build_retrieval_index(database, arguments.entities),
+            "relations": build_relations(database, arguments.relations),
+        }
+    elif arguments.command == "serve":
+        try:
+            import uvicorn
+            from app.api.main import create_app
+        except ImportError as error:
+            raise SystemExit(
+                "Web dependencies are missing; install the project dependencies first"
+            ) from error
+        uvicorn.run(
+            create_app(database_path=arguments.database),
+            host=arguments.host,
+            port=arguments.port,
+        )
+        return 0
     else:
         raise AssertionError("Unhandled command")
     _print(result)

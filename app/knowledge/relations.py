@@ -170,7 +170,7 @@ def build_relations(database: Database, catalogue_path: Path) -> Dict[str, Any]:
     }
 
 
-def audit_relations(database: Database) -> Dict[str, Any]:
+def audit_relations(database: Database, update: bool = True) -> Dict[str, Any]:
     current = {item["evidence_id"] for item in database.retrieval_rows()}
     stale_ids = []
     with database.connect() as connection:
@@ -181,10 +181,11 @@ def audit_relations(database: Database) -> Dict[str, Any]:
                 (relation["id"],),
             ).fetchall()
             stale = not evidence or any(item["evidence_id"] not in current for item in evidence)
-            connection.execute(
-                "UPDATE relations SET is_stale = ? WHERE id = ?",
-                (int(stale), relation["id"]),
-            )
+            if update:
+                connection.execute(
+                    "UPDATE relations SET is_stale = ? WHERE id = ?",
+                    (int(stale), relation["id"]),
+                )
             if stale:
                 stale_ids.append(int(relation["id"]))
     return {"relations": len(relation_rows), "stale": len(stale_ids), "stale_ids": stale_ids}
@@ -195,7 +196,7 @@ def list_relations(
     entity_name: Optional[str] = None,
     include_candidates: bool = False,
 ) -> List[Dict[str, Any]]:
-    audit_relations(database)
+    stale_ids = set(audit_relations(database, update=False)["stale_ids"])
     rows_by_evidence = {item["evidence_id"]: item for item in database.retrieval_rows()}
     query = """
         SELECT r.*, s.canonical_name AS subject_name, s.entity_type AS subject_type,
@@ -203,7 +204,7 @@ def list_relations(
         FROM relations r
         JOIN entities s ON s.id = r.subject_id
         JOIN entities o ON o.id = r.object_id
-        WHERE r.is_stale = 0
+        WHERE 1 = 1
     """
     parameters: List[Any] = []
     if include_candidates:
@@ -218,6 +219,8 @@ def list_relations(
         relations = connection.execute(query, parameters).fetchall()
         output = []
         for relation in relations:
+            if int(relation["id"]) in stale_ids:
+                continue
             evidence_rows = connection.execute(
                 "SELECT evidence_id FROM relation_evidence WHERE relation_id = ? ORDER BY evidence_id",
                 (relation["id"],),
