@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-03T15:40:00+08:00",
+  "evidence_type": "operator_attested_cloud_execution",
+  "rds": {
+    "private_connectivity_verified": true,
+    "connection_transport": "same_vpc_private_non_ssl",
+    "non_ssl_explicitly_authorized": true,
+    "non_ssl_authorized_at": "2026-09-03",
+    "runtime_role_read_only_verified": true,
+    "prohibited_operations_failed": true,
+    "maximum_rcu": 4,
+    "automatic_pause_configured": true,
+    "backup_restore": {
+      "completed": false,
+      "started_at": null,
+      "completed_at": null,
+      "test_artifact_sha256": null,
+      "restored_artifact_sha256": null
+    }
+  },
+  "application_runner": {
+    "deployed": true,
+    "health_check_passed": true,
+    "private_database_read_passed": true,
+    "automatic_restart_verified": true,
+    "service_manager": "systemd_user"
+  },
+  "oss": {
+    "private_access": false,
+    "versioning_enabled": false,
+    "historical_restore": {
+      "completed": false,
+      "execution_status": "waived_by_user",
+      "waived_at": "2026-09-03",
+      "waiver_reason": "The user chose not to execute the OSS historical-version restore drill.",
+      "started_at": null,
+      "completed_at": null,
+      "test_object_sha256": null,
+      "restored_object_sha256": null
+    }
+  },
+  "temporary_resources_remaining": [],
+  "retained_resources": [
+    "private_rds_postgresql_serverless",
+    "same_vpc_application_runner"
+  ],
+  "notes": "The same-VPC runner is retained as the development, test, and deployment host. The application listens only on 127.0.0.1 and recovered automatically after its process was terminated. Alibaba Cloud RDS PostgreSQL Serverless does not support SSL; the user explicitly accepted same-VPC private non-SSL transport on 2026-09-03. The final private RDS audit passed with zero synthetic rows. OSS and RDS restore drills are deferred by explicit user decision and are not represented as passed. Provider resource identifiers and credentials are omitted."
+}

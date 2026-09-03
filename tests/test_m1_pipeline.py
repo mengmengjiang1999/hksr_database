@@ -381,6 +381,8 @@ class PipelineTests(unittest.TestCase):
         self.database.rebuild_fts()
 
         self.assertEqual(self.database.search('不存在 "引号"'), [])
+        self.assertEqual(self.database.search("不存在%通配符"), [])
+        self.assertEqual(self.database.search("不存在_通配符"), [])
         self.assertEqual(self.database.search("   "), [])
 
 

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-02T20:00:00+08:00",
+  "evidence_type": "operator_attested_dms_result",
+  "database": {
+    "name": "hksr",
+    "connection_succeeded": true
+  },
+  "available_extensions": {
+    "pg_bigm": "1.2",
+    "pg_jieba": "1.2.0",
+    "vector": "0.8.1.2",
+    "zhparser": "1.0"
+  },
+  "functional_probes": {
+    "vector": {
+      "extension_created": true,
+      "distance_query_succeeded": true,
+      "status": "passed"
+    },
+    "pg_bigm": {
+      "extension_created": true,
+      "show_bigm_succeeded": true,
+      "status": "passed"
+    },
+    "pg_jieba": {
+      "extension_created": true,
+      "to_tsvector_succeeded": true,
+      "observed_terms": [
+        "阿格",
+        "莱雅",
+        "黄金",
+        "裔"
+      ],
+      "proper_name_split_observed": true,
+      "status": "passed_with_relevance_caveat"
+    },
+    "zhparser": {
+      "extension_created": true,
+      "temporary_configuration_transaction_succeeded": true,
+      "temporary_configuration_rolled_back": true,
+      "status": "passed"
+    }
+  },
+  "shared_preload_libraries": [
+    "pg_stat_statements",
+    "auth_delay",
+    "auto_explain",
+    "pg_bigm",
+    "pg_jieba",
+    "zhparser"
+  ],
+  "prohibited_fields_omitted": [
+    "instance_id",
+    "endpoint",
+    "account_name",
+    "password",
+    "access_key"
+  ]
+}

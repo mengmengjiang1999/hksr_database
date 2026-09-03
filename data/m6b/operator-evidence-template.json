@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "observed_at": null,
+  "rds": {
+    "private_connectivity_verified": false,
+    "runtime_role_read_only_verified": false,
+    "prohibited_operations_failed": false,
+    "maximum_rcu": 4,
+    "automatic_pause_configured": false,
+    "backup_restore": {
+      "completed": false,
+      "started_at": null,
+      "completed_at": null,
+      "test_artifact_sha256": null,
+      "restored_artifact_sha256": null
+    }
+  },
+  "application_runner": {
+    "deployed": false,
+    "health_check_passed": false,
+    "private_database_read_passed": false,
+    "automatic_restart_verified": false,
+    "service_manager": null
+  },
+  "oss": {
+    "private_access": false,
+    "versioning_enabled": false,
+    "historical_restore": {
+      "completed": false,
+      "started_at": null,
+      "completed_at": null,
+      "test_object_sha256": null,
+      "restored_object_sha256": null
+    }
+  },
+  "temporary_resources_remaining": [],
+  "notes": "Do not add resource IDs, endpoints, account names, passwords, tokens, or AccessKeys."
+}

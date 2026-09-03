@@ -1,0 +1,255 @@
+{
+  "acceptance_gates": {
+    "cloud_application_smoke_test": true,
+    "idempotent_official_import": true,
+    "no_synthetic_rows_remaining": true,
+    "postgresql_18_and_extensions": true,
+    "private_least_privilege_execution": true,
+    "procurement_price_observed": true,
+    "rcu_cap_and_automatic_pause": true,
+    "temporary_resources_released": true
+  },
+  "automatic_measurements": {
+    "database_audit": {
+      "generated_at": "2026-09-03T07:39:45.560257+00:00",
+      "import_batches": 1,
+      "official_counts": {
+        "aliases": 45,
+        "chunks": 41,
+        "documents": 15,
+        "entities": 35,
+        "entity_chunks": 243,
+        "official_evidence": 41,
+        "relation_evidence": 625,
+        "relations": 316,
+        "sources": 5
+      },
+      "schema_version": 1,
+      "synthetic_rows": 0
+    },
+    "official_imports": [
+      {
+        "batch_id": "m6b-real-initial-20260903",
+        "counts_match": true,
+        "dense_embeddings_imported": 0,
+        "duration_seconds": 0.851,
+        "expected_counts": {
+          "aliases": 45,
+          "chunks": 41,
+          "documents": 15,
+          "entities": 35,
+          "entity_chunks": 243,
+          "official_evidence": 41,
+          "relation_evidence": 625,
+          "relations": 316,
+          "sources": 5
+        },
+        "local_sparse_vectors_deferred": 41,
+        "observed_counts": {
+          "aliases": 45,
+          "chunks": 41,
+          "documents": 15,
+          "entities": 35,
+          "entity_chunks": 243,
+          "official_evidence": 41,
+          "relation_evidence": 625,
+          "relations": 316,
+          "sources": 5
+        },
+        "repeated_batch": false,
+        "source_fingerprint": "08d6b995b9cdebafcc548f2c7938472e8357982a1ecc1222679944ccb2999244",
+        "stable_evidence_ids_unique": true,
+        "synthetic_rows_imported": 0
+      },
+      {
+        "batch_id": "m6b-real-initial-20260903",
+        "counts_match": true,
+        "dense_embeddings_imported": 0,
+        "duration_seconds": 0.887,
+        "expected_counts": {
+          "aliases": 45,
+          "chunks": 41,
+          "documents": 15,
+          "entities": 35,
+          "entity_chunks": 243,
+          "official_evidence": 41,
+          "relation_evidence": 625,
+          "relations": 316,
+          "sources": 5
+        },
+        "local_sparse_vectors_deferred": 41,
+        "observed_counts": {
+          "aliases": 45,
+          "chunks": 41,
+          "documents": 15,
+          "entities": 35,
+          "entity_chunks": 243,
+          "official_evidence": 41,
+          "relation_evidence": 625,
+          "relations": 316,
+          "sources": 5
+        },
+        "repeated_batch": true,
+        "source_fingerprint": "08d6b995b9cdebafcc548f2c7938472e8357982a1ecc1222679944ccb2999244",
+        "stable_evidence_ids_unique": true,
+        "synthetic_rows_imported": 0
+      }
+    ]
+  },
+  "deferred_checks": {
+    "oss_historical_version_restore": true,
+    "rds_backup_restore": true
+  },
+  "generated_at": "2026-09-03T07:40:59.912085+00:00",
+  "operator_attested_evidence": {
+    "extensions": {
+      "available_extensions": {
+        "pg_bigm": "1.2",
+        "pg_jieba": "1.2.0",
+        "vector": "0.8.1.2",
+        "zhparser": "1.0"
+      },
+      "database": {
+        "connection_succeeded": true,
+        "name": "hksr"
+      },
+      "evidence_type": "operator_attested_dms_result",
+      "functional_probes": {
+        "pg_bigm": {
+          "extension_created": true,
+          "show_bigm_succeeded": true,
+          "status": "passed"
+        },
+        "pg_jieba": {
+          "extension_created": true,
+          "observed_terms": [
+            "阿格",
+            "莱雅",
+            "黄金",
+            "裔"
+          ],
+          "proper_name_split_observed": true,
+          "status": "passed_with_relevance_caveat",
+          "to_tsvector_succeeded": true
+        },
+        "vector": {
+          "distance_query_succeeded": true,
+          "extension_created": true,
+          "status": "passed"
+        },
+        "zhparser": {
+          "extension_created": true,
+          "status": "passed",
+          "temporary_configuration_rolled_back": true,
+          "temporary_configuration_transaction_succeeded": true
+        }
+      },
+      "observed_at": "2026-09-02T20:00:00+08:00",
+      "prohibited_fields_omitted": [
+        "instance_id",
+        "endpoint",
+        "account_name",
+        "password",
+        "access_key"
+      ],
+      "schema_version": 1,
+      "shared_preload_libraries": [
+        "pg_stat_statements",
+        "auth_delay",
+        "auto_explain",
+        "pg_bigm",
+        "pg_jieba",
+        "zhparser"
+      ]
+    },
+    "procurement": {
+      "availability_zone": "Shanghai Zone F",
+      "database": {
+        "automatic_pause": true,
+        "engine": "PostgreSQL",
+        "force_scaling": false,
+        "major_version": 18,
+        "maximum_rcu": 4,
+        "minimum_rcu": 0.5,
+        "release_protection": true,
+        "series": "serverless_basic",
+        "storage_gib": 20,
+        "storage_type": "high_performance_cloud_disk"
+      },
+      "evidence_type": "operator_attested_console_observation",
+      "network": "private_vpc",
+      "observed_at": "2026-09-02T19:10:00+08:00",
+      "prohibited_fields_omitted": [
+        "instance_id",
+        "vpc_id",
+        "endpoint",
+        "account_name",
+        "password",
+        "access_key"
+      ],
+      "provider": "Alibaba Cloud",
+      "public_list_price": {
+        "final_order_price": "pending_invoice_observation",
+        "rcu_cny_per_hour": 0.333,
+        "storage_cny_per_gib_hour": 0.0017
+      },
+      "region": "cn-shanghai",
+      "schema_version": 1
+    },
+    "recovery_and_cleanup": {
+      "application_runner": {
+        "automatic_restart_verified": true,
+        "deployed": true,
+        "health_check_passed": true,
+        "private_database_read_passed": true,
+        "service_manager": "systemd_user"
+      },
+      "evidence_type": "operator_attested_cloud_execution",
+      "notes": "The same-VPC runner is retained as the development, test, and deployment host. The application listens only on 127.0.0.1 and recovered automatically after its process was terminated. Alibaba Cloud RDS PostgreSQL Serverless does not support SSL; the user explicitly accepted same-VPC private non-SSL transport on 2026-09-03. The final private RDS audit passed with zero synthetic rows. OSS and RDS restore drills are deferred by explicit user decision and are not represented as passed. Provider resource identifiers and credentials are omitted.",
+      "observed_at": "2026-09-03T15:40:00+08:00",
+      "oss": {
+        "historical_restore": {
+          "completed": false,
+          "completed_at": null,
+          "execution_status": "waived_by_user",
+          "restored_object_sha256": null,
+          "started_at": null,
+          "test_object_sha256": null,
+          "waived_at": "2026-09-03",
+          "waiver_reason": "The user chose not to execute the OSS historical-version restore drill."
+        },
+        "private_access": false,
+        "versioning_enabled": false
+      },
+      "rds": {
+        "automatic_pause_configured": true,
+        "backup_restore": {
+          "completed": false,
+          "completed_at": null,
+          "restored_artifact_sha256": null,
+          "started_at": null,
+          "test_artifact_sha256": null
+        },
+        "connection_transport": "same_vpc_private_non_ssl",
+        "maximum_rcu": 4,
+        "non_ssl_authorized_at": "2026-09-03",
+        "non_ssl_explicitly_authorized": true,
+        "private_connectivity_verified": true,
+        "prohibited_operations_failed": true,
+        "runtime_role_read_only_verified": true
+      },
+      "retained_resources": [
+        "private_rds_postgresql_serverless",
+        "same_vpc_application_runner"
+      ],
+      "schema_version": 1,
+      "temporary_resources_remaining": []
+    }
+  },
+  "ready_to_archive": true,
+  "restore_durations_seconds": {
+    "oss": null,
+    "rds": null
+  },
+  "schema_version": 1
+}

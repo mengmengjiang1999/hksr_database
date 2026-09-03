@@ -661,6 +661,29 @@ class Database:
                 """,
                 (fts_query, limit),
             ).fetchall()
+            if not rows:
+                literal = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                pattern = "%%%s%%" % literal
+                rows = connection.execute(
+                    """
+                    SELECT
+                        c.id AS chunk_id, d.source_id, c.section_path, c.speaker, c.text,
+                        0.0 AS score, s.title, s.page_url, s.source_kind
+                    FROM chunks c
+                    JOIN documents d ON d.id = c.document_id
+                    JOIN sources s ON s.id = d.source_id
+                    WHERE d.evidence_eligible = 1
+                      AND s.status = 'parsed'
+                      AND (
+                          c.text LIKE ? ESCAPE '\\'
+                          OR c.section_path LIKE ? ESCAPE '\\'
+                          OR COALESCE(c.speaker, '') LIKE ? ESCAPE '\\'
+                      )
+                    ORDER BY c.id
+                    LIMIT ?
+                    """,
+                    (pattern, pattern, pattern, limit),
+                ).fetchall()
             return [dict(row) for row in rows]
 
     def statistics(self) -> Dict[str, Any]:

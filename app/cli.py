@@ -8,6 +8,21 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 from app.capacity import build_capacity_report
+from app.cloud import (
+    CloudDatabaseConfig,
+    apply_migrations,
+    build_acceptance_report,
+    build_database_audit,
+    build_environment_report,
+    cleanup_fixture,
+    import_official_sqlite,
+    load_fixture,
+    probe_extensions,
+    run_benchmark,
+    read_json_report,
+    write_acceptance_reports,
+    write_json_report,
+)
 from app.collectors import (
     discover_manifest,
     discover_official_account,
@@ -29,6 +44,13 @@ DEFAULT_EVALUATION = Path("data/m2/evaluation.json")
 DEFAULT_QA_EVALUATION = Path("data/m3/evaluation.json")
 DEFAULT_RELATIONS = Path("data/m4/relations.json")
 DEFAULT_CAPACITY_ASSUMPTIONS = Path("data/m6a/capacity-assumptions.json")
+DEFAULT_M6B_PROCUREMENT = Path("data/m6b/procurement-observation.json")
+DEFAULT_M6B_EXTENSIONS = Path("data/m6b/dms-extension-observation.json")
+DEFAULT_M6B_OPERATOR = Path("data/m6b/operator-evidence.json")
+DEFAULT_M6B_IMPORT_REPORTS = (
+    Path("data/m6b/runs/real-import-first.json"),
+    Path("data/m6b/runs/real-import-second.json"),
+)
 
 
 def _print(value: object) -> None:
@@ -120,6 +142,74 @@ def build_parser() -> argparse.ArgumentParser:
     capacity.add_argument("--raw-root", type=Path, default=DEFAULT_RAW_ROOT)
     capacity.add_argument(
         "--assumptions", type=Path, default=DEFAULT_CAPACITY_ASSUMPTIONS
+    )
+
+    cloud_discover = subparsers.add_parser(
+        "cloud-discover", help="Inspect PostgreSQL without exposing its DSN"
+    )
+    cloud_discover.add_argument("--output", type=Path)
+
+    cloud_extensions = subparsers.add_parser(
+        "cloud-extensions", help="Probe required PostgreSQL extensions"
+    )
+    cloud_extensions.add_argument("--allow-mutation", action="store_true")
+    cloud_extensions.add_argument("--output", type=Path)
+
+    cloud_migrate = subparsers.add_parser(
+        "cloud-migrate", help="Apply versioned PostgreSQL migrations"
+    )
+    cloud_migrate.add_argument("--allow-mutation", action="store_true")
+
+    cloud_import = subparsers.add_parser(
+        "cloud-import-sqlite",
+        help="Import the current official SQLite corpus into PostgreSQL",
+    )
+    cloud_import.add_argument("--batch-id", required=True)
+    cloud_import.add_argument("--allow-mutation", action="store_true")
+    cloud_import.add_argument("--output", type=Path)
+
+    cloud_load = subparsers.add_parser(
+        "cloud-load-fixture", help="Load an isolated synthetic scale fixture"
+    )
+    cloud_load.add_argument("--run-id", required=True)
+    cloud_load.add_argument("--chunks", type=int, default=100_000)
+    cloud_load.add_argument("--dimensions", type=int, default=1024)
+    cloud_load.add_argument("--allow-mutation", action="store_true")
+
+    cloud_benchmark = subparsers.add_parser(
+        "cloud-benchmark", help="Measure exact/HNSW recall and query latency"
+    )
+    cloud_benchmark.add_argument("--run-id", required=True)
+    cloud_benchmark.add_argument("--queries", type=int, default=20)
+    cloud_benchmark.add_argument("--concurrency", type=int, default=10)
+    cloud_benchmark.add_argument("--output", type=Path)
+
+    cloud_cleanup = subparsers.add_parser(
+        "cloud-cleanup", help="Delete one explicitly named synthetic run"
+    )
+    cloud_cleanup.add_argument("--run-id", required=True)
+    cloud_cleanup.add_argument("--allow-mutation", action="store_true")
+
+    cloud_audit = subparsers.add_parser(
+        "cloud-audit", help="Read the final PostgreSQL row counts and synthetic state"
+    )
+    cloud_audit.add_argument("--output", type=Path)
+
+    cloud_acceptance = subparsers.add_parser(
+        "cloud-acceptance-report", help="Combine M6B measurements and operator evidence"
+    )
+    cloud_acceptance.add_argument("--procurement", type=Path, default=DEFAULT_M6B_PROCUREMENT)
+    cloud_acceptance.add_argument("--extensions", type=Path, default=DEFAULT_M6B_EXTENSIONS)
+    cloud_acceptance.add_argument("--operator-evidence", type=Path, default=DEFAULT_M6B_OPERATOR)
+    cloud_acceptance.add_argument(
+        "--import-report", type=Path, action="append", dest="import_reports"
+    )
+    cloud_acceptance.add_argument("--database-audit", type=Path)
+    cloud_acceptance.add_argument(
+        "--output-json", type=Path, default=Path("data/m6b/acceptance-report.json")
+    )
+    cloud_acceptance.add_argument(
+        "--output-markdown", type=Path, default=Path("docs/m6b-acceptance-report.md")
     )
     return parser
 
@@ -236,6 +326,62 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         result = build_capacity_report(
             arguments.database, arguments.raw_root, arguments.assumptions
         )
+    elif arguments.command == "cloud-acceptance-report":
+        imports = arguments.import_reports or list(DEFAULT_M6B_IMPORT_REPORTS)
+        audit = read_json_report(arguments.database_audit) if arguments.database_audit else None
+        result = build_acceptance_report(
+            procurement=read_json_report(arguments.procurement),
+            extension_observation=read_json_report(arguments.extensions),
+            operator_evidence=read_json_report(arguments.operator_evidence),
+            import_reports=[read_json_report(path) for path in imports],
+            database_audit=audit,
+        )
+        write_acceptance_reports(
+            arguments.output_json, arguments.output_markdown, result
+        )
+    elif arguments.command.startswith("cloud-"):
+        config = CloudDatabaseConfig.from_environment()
+        if arguments.command == "cloud-discover":
+            result = build_environment_report(config)
+        elif arguments.command == "cloud-extensions":
+            result = probe_extensions(config, allow_mutation=arguments.allow_mutation)
+        elif arguments.command == "cloud-migrate":
+            result = apply_migrations(config, allow_mutation=arguments.allow_mutation)
+        elif arguments.command == "cloud-import-sqlite":
+            result = import_official_sqlite(
+                config,
+                sqlite_path=arguments.database,
+                batch_id=arguments.batch_id,
+                allow_mutation=arguments.allow_mutation,
+            )
+        elif arguments.command == "cloud-load-fixture":
+            result = load_fixture(
+                config,
+                run_id=arguments.run_id,
+                count=arguments.chunks,
+                dimensions=arguments.dimensions,
+                allow_mutation=arguments.allow_mutation,
+            )
+        elif arguments.command == "cloud-benchmark":
+            result = run_benchmark(
+                config,
+                run_id=arguments.run_id,
+                query_count=arguments.queries,
+                concurrency=arguments.concurrency,
+            )
+        elif arguments.command == "cloud-cleanup":
+            result = cleanup_fixture(
+                config,
+                run_id=arguments.run_id,
+                allow_mutation=arguments.allow_mutation,
+            )
+        elif arguments.command == "cloud-audit":
+            result = build_database_audit(config)
+        else:
+            raise AssertionError("Unhandled cloud command")
+        output = getattr(arguments, "output", None)
+        if output:
+            write_json_report(output, result)
     else:
         raise AssertionError("Unhandled command")
     _print(result)

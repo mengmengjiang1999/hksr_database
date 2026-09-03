@@ -1,0 +1,15 @@
+[Unit]
+Description=Honkai Star Rail evidence knowledge application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/hksr_database
+Environment=PYTHONUNBUFFERED=1
+ExecStart=%h/hksr_database/.venv/bin/python -m app.cli serve --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
