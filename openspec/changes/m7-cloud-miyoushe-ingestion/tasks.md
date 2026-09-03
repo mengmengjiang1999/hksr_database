@@ -1,30 +1,30 @@
 ## 1. Runtime convention and deterministic coverage
 
-- [ ] 1.1 Document ECS as the normal runtime for ordinary real-collection commands without adding an activation flag, host marker, or machine-identity check.
-- [ ] 1.2 Add deterministic mocked tests for multi-run cursor resume, terminal detection, duplicate post IDs, malformed responses, and newly appearing posts.
-- [ ] 1.3 Add deterministic pacing tests for the two-page discovery cap, ten-body fetch cap, 15–30 second jitter bounds, 60-request daily budget, retry budget, and three-failure circuit breaker.
-- [ ] 1.4 Add lock, interruption, secret-redaction, and report-schema tests without contacting Miyoushe, OSS, RDS, or ECS metadata services.
+- [x] 1.1 Document ECS as the normal runtime for ordinary real-collection commands without adding an activation flag, host marker, or machine-identity check.
+- [x] 1.2 Add deterministic mocked tests for multi-run cursor resume, terminal detection, duplicate post IDs, malformed responses, and newly appearing posts.
+- [x] 1.3 Add deterministic pacing tests for the two-page discovery cap, ten-body fetch cap, 15–30 second jitter bounds, 60-request default daily budget, approved finite or unlimited recorded overrides, retry budget, and three-failure circuit breaker.
+- [x] 1.4 Add lock, interruption, secret-redaction, and report-schema tests without contacting Miyoushe, OSS, RDS, or ECS metadata services.
 
 ## 2. Resumable staging and classification
 
-- [ ] 2.1 Add versioned SQLite migrations for collection runs, account checkpoints, daily request budgets, source dispositions, fetch attempts, and raw-object manifests.
-- [ ] 2.2 Implement atomic one-page cursor commits and resume behavior that distinguishes bounded pause from upstream terminal completion.
-- [ ] 2.3 Implement versioned classification states and reasons for eligible evidence, operational exclusions, missing official text, manual review, and unverified listing items.
-- [ ] 2.4 Add review commands that can reclassify an item without refetching unchanged content and that never promote unverified items.
+- [x] 2.1 Add versioned SQLite migrations for collection runs, account checkpoints, daily request budgets, source dispositions, fetch attempts, and raw-object manifests.
+- [x] 2.2 Implement atomic one-page cursor commits and resume behavior that distinguishes bounded pause from upstream terminal completion.
+- [x] 2.3 Implement versioned classification states and reasons for eligible evidence, operational exclusions, missing official text, manual review, and unverified listing items.
+- [x] 2.4 Add review commands that can reclassify an item without refetching unchanged content and that never promote unverified items.
 
 ## 3. Slow collector and private raw storage
 
-- [ ] 3.1 Split official-account metadata discovery from post-body fetching and expose separate bounded CLI commands with conservative pacing defaults.
-- [ ] 3.2 Implement delayed requests, jitter, `Retry-After`, exponential backoff, shared daily accounting, circuit breaking, and a single-run OS lock.
-- [ ] 3.3 Add canonical response hashing, protected local spooling, and deterministic private OSS object manifests without video binary download.
-- [ ] 3.4 Add OSS upload through an ECS RAM role and refuse static AccessKey configuration or a successful fetch state before OSS persistence.
-- [ ] 3.5 Generalize real-import batch validation for unique M7 identifiers and produce per-batch SQLite-to-RDS reconciliation audits.
+- [x] 3.1 Split official-account metadata discovery from post-body fetching and expose separate bounded CLI commands with conservative pacing defaults.
+- [x] 3.2 Implement delayed requests, jitter, `Retry-After`, exponential backoff, shared daily accounting, circuit breaking, and a single-run OS lock.
+- [x] 3.3 Add canonical response hashing, protected local spooling, and deterministic private OSS object manifests without video binary download.
+- [x] 3.4 Add OSS upload through an ECS RAM role and refuse static AccessKey configuration or a successful fetch state before OSS persistence.
+- [x] 3.5 Generalize real-import batch validation for unique M7 identifiers and produce per-batch SQLite-to-RDS reconciliation audits.
 
 ## 4. M7A cloud pilot
 
-- [ ] 4.1 Deploy the tested collector revision to ECS and verify that the production runbook launches the ordinary collection commands from the cloud working directory without an activation flag or host-specific marker.
-- [ ] 4.2 Attach a least-privilege ECS RAM role limited to the designated private OSS M7 prefix and verify it with one non-sensitive probe object.
-- [ ] 4.3 Run exactly one ECS discovery pilot of at most two 20-item pages and record cursor, pacing, official verification, and disposition totals.
+- [x] 4.1 Deploy the tested collector revision to ECS and verify that the production runbook launches the ordinary collection commands from the cloud working directory without an activation flag or host-specific marker.
+- [x] 4.2 Attach a least-privilege ECS RAM role limited to the designated private OSS M7 prefix and verify it with one non-sensitive probe object.
+- [x] 4.3 Run exactly one ECS discovery pilot of at most two 20-item pages and record cursor, pacing, official verification, and disposition totals.
 - [ ] 4.4 Run exactly one ECS body-fetch pilot of at most ten posts, persist raw hashes to OSS, parse eligible items, and reconcile the pilot batch into RDS twice without duplicates.
 - [ ] 4.5 Review M7A categories, empty text, video subtitle availability, parser failures, rate-limit signals, and reports before authorizing M7B.
 

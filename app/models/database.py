@@ -130,6 +130,69 @@ CREATE INDEX IF NOT EXISTS idx_relations_subject ON relations(subject_id, review
 CREATE INDEX IF NOT EXISTS idx_relations_object ON relations(object_id, review_status);
 """
 
+SQLITE_MIGRATIONS = (
+    (
+        1,
+        """
+        CREATE TABLE IF NOT EXISTS collection_runs (
+            run_id TEXT PRIMARY KEY,
+            stage TEXT NOT NULL,
+            status TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            finished_at TEXT,
+            report_json TEXT NOT NULL DEFAULT '{}'
+        );
+        CREATE TABLE IF NOT EXISTS account_checkpoints (
+            account_uid TEXT PRIMARY KEY,
+            next_cursor TEXT NOT NULL DEFAULT '',
+            terminal INTEGER NOT NULL DEFAULT 0,
+            observed_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL,
+            terminal_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS daily_request_budgets (
+            budget_date TEXT PRIMARY KEY,
+            request_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS source_dispositions (
+            source_id INTEGER PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,
+            disposition TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            classifier_version TEXT NOT NULL,
+            verified INTEGER NOT NULL,
+            reviewed_at TEXT,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS fetch_attempts (
+            id INTEGER PRIMARY KEY,
+            run_id TEXT NOT NULL REFERENCES collection_runs(run_id) ON DELETE CASCADE,
+            source_id INTEGER REFERENCES sources(id) ON DELETE CASCADE,
+            attempt INTEGER NOT NULL,
+            outcome TEXT NOT NULL,
+            http_status INTEGER,
+            wait_seconds REAL NOT NULL DEFAULT 0,
+            error_type TEXT,
+            attempted_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS raw_object_manifests (
+            source_id INTEGER PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,
+            raw_sha256 TEXT NOT NULL,
+            raw_byte_count INTEGER NOT NULL,
+            local_path TEXT NOT NULL,
+            object_key TEXT NOT NULL,
+            etag TEXT,
+            object_version TEXT,
+            persisted_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dispositions_state
+            ON source_dispositions(disposition, verified);
+        CREATE INDEX IF NOT EXISTS idx_fetch_attempts_run
+            ON fetch_attempts(run_id, id);
+        """,
+    ),
+)
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -169,6 +232,33 @@ class Database:
             }
             if "content_sha256" not in columns:
                 connection.execute("ALTER TABLE sources ADD COLUMN content_sha256 TEXT")
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS hksr_sqlite_migrations (
+                       version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL
+                   )"""
+            )
+            applied = {
+                int(row[0]) for row in connection.execute(
+                    "SELECT version FROM hksr_sqlite_migrations"
+                )
+            }
+            for version, sql in SQLITE_MIGRATIONS:
+                if version not in applied:
+                    connection.executescript(sql)
+                    connection.execute(
+                        "INSERT INTO hksr_sqlite_migrations(version, applied_at) VALUES (?, ?)",
+                        (version, utc_now()),
+                    )
+            fts_exists = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'chunks_fts'"
+            ).fetchone()
+            if fts_exists:
+                try:
+                    connection.execute("SELECT COUNT(*) FROM chunks_fts").fetchone()
+                except sqlite3.OperationalError as error:
+                    if "no such tokenizer" not in str(error).lower():
+                        raise
+                    self._reset_fts(connection)
 
     def replace_entities(self, entities: Iterable[Mapping[str, Any]]) -> Dict[str, int]:
         """Replace the small curated entity catalogue and relink all chunks."""
@@ -432,7 +522,249 @@ class Database:
                 "SELECT id FROM sources WHERE provider = ? AND external_id = ?",
                 (source["provider"], source["external_id"]),
             ).fetchone()
+            if source.get("official_status"):
+                connection.execute(
+                    "UPDATE sources SET official_status = ? WHERE id = ?",
+                    (source["official_status"], int(row["id"])),
+                )
             return int(row["id"])
+
+    def collection_checkpoint(self, account_uid: str) -> Dict[str, Any]:
+        self.initialize()
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM account_checkpoints WHERE account_uid = ?",
+                (account_uid,),
+            ).fetchone()
+        return dict(row) if row else {
+            "account_uid": account_uid,
+            "next_cursor": "",
+            "terminal": 0,
+            "observed_count": 0,
+            "updated_at": None,
+            "terminal_at": None,
+        }
+
+    def start_collection_run(self, run_id: str, stage: str) -> None:
+        self.initialize()
+        with self.connect() as connection:
+            connection.execute(
+                """INSERT INTO collection_runs(run_id, stage, status, started_at)
+                   VALUES (?, ?, 'running', ?)""",
+                (run_id, stage, utc_now()),
+            )
+
+    def finish_collection_run(
+        self, run_id: str, status: str, report: Mapping[str, Any]
+    ) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                """UPDATE collection_runs
+                   SET status = ?, finished_at = ?, report_json = ? WHERE run_id = ?""",
+                (status, utc_now(), json.dumps(report, ensure_ascii=False), run_id),
+            )
+
+    def commit_discovery_page(
+        self,
+        account_uid: str,
+        items: Sequence[Mapping[str, Any]],
+        next_cursor: str,
+        terminal: bool,
+        classifier_version: str,
+    ) -> Dict[str, int]:
+        """Atomically register one listing page and its following cursor."""
+        self.initialize()
+        inserted = 0
+        duplicates = 0
+        unverified = 0
+        now = utc_now()
+        with self.connect() as connection:
+            before = {
+                (row["provider"], row["external_id"]): int(row["id"])
+                for row in connection.execute(
+                    "SELECT id, provider, external_id FROM sources WHERE provider = 'miyoushe'"
+                )
+            }
+            page_ids = set()
+            for item in items:
+                external_id = str(item["external_id"])
+                if external_id in page_ids:
+                    duplicates += 1
+                    continue
+                page_ids.add(external_id)
+                identity = ("miyoushe", external_id)
+                verified = bool(item["verified"])
+                connection.execute(
+                    """INSERT INTO sources(
+                           provider, external_id, source_kind, parser, page_url, api_url,
+                           headers_json, expected_title, official_status, discovered_at
+                       ) VALUES ('miyoushe', ?, ?, 'miyoushe_post', ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(provider, external_id) DO UPDATE SET
+                         source_kind = excluded.source_kind,
+                         page_url = excluded.page_url,
+                         api_url = excluded.api_url,
+                         headers_json = excluded.headers_json,
+                         expected_title = excluded.expected_title,
+                         official_status = excluded.official_status""",
+                    (
+                        external_id, item["source_kind"], item["page_url"], item["api_url"],
+                        json.dumps(item.get("headers") or {}, ensure_ascii=False),
+                        item.get("title", ""), "verified" if verified else "unverified", now,
+                    ),
+                )
+                source_id = int(connection.execute(
+                    "SELECT id FROM sources WHERE provider = 'miyoushe' AND external_id = ?",
+                    (external_id,),
+                ).fetchone()[0])
+                if identity in before:
+                    duplicates += 1
+                else:
+                    inserted += 1
+                disposition = "manual_review" if verified else "excluded_unverified"
+                reason = "awaiting_body_classification" if verified else "listing_not_officially_verified"
+                if not verified:
+                    unverified += 1
+                connection.execute(
+                    """INSERT INTO source_dispositions(
+                           source_id, disposition, reason, classifier_version, verified, updated_at
+                       ) VALUES (?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(source_id) DO UPDATE SET
+                         verified = excluded.verified,
+                         disposition = CASE WHEN source_dispositions.reviewed_at IS NULL
+                                            THEN excluded.disposition ELSE source_dispositions.disposition END,
+                         reason = CASE WHEN source_dispositions.reviewed_at IS NULL
+                                      THEN excluded.reason ELSE source_dispositions.reason END,
+                         classifier_version = CASE WHEN source_dispositions.reviewed_at IS NULL
+                                                  THEN excluded.classifier_version ELSE source_dispositions.classifier_version END,
+                         updated_at = excluded.updated_at""",
+                    (source_id, disposition, reason, classifier_version, int(verified), now),
+                )
+            previous = connection.execute(
+                "SELECT observed_count FROM account_checkpoints WHERE account_uid = ?",
+                (account_uid,),
+            ).fetchone()
+            observed = max(int(previous[0]) if previous else 0, len(before) + inserted)
+            connection.execute(
+                """INSERT INTO account_checkpoints(
+                       account_uid, next_cursor, terminal, observed_count, updated_at, terminal_at
+                   ) VALUES (?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(account_uid) DO UPDATE SET
+                     next_cursor = excluded.next_cursor,
+                     terminal = excluded.terminal,
+                     observed_count = max(account_checkpoints.observed_count, excluded.observed_count),
+                     updated_at = excluded.updated_at,
+                     terminal_at = CASE WHEN excluded.terminal = 1
+                                        THEN COALESCE(account_checkpoints.terminal_at, excluded.terminal_at)
+                                        ELSE account_checkpoints.terminal_at END""",
+                (account_uid, next_cursor, int(terminal), observed, now, now if terminal else None),
+            )
+        return {"registered": inserted, "duplicates": duplicates, "unverified": unverified}
+
+    def reserve_daily_request(self, budget_date: str, limit: int) -> int:
+        self.initialize()
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT request_count FROM daily_request_budgets WHERE budget_date = ?",
+                (budget_date,),
+            ).fetchone()
+            count = int(row[0]) if row else 0
+            if limit > 0 and count >= limit:
+                raise RuntimeError("daily request budget exhausted")
+            count += 1
+            connection.execute(
+                """INSERT INTO daily_request_budgets(budget_date, request_count, updated_at)
+                   VALUES (?, ?, ?) ON CONFLICT(budget_date) DO UPDATE SET
+                     request_count = excluded.request_count, updated_at = excluded.updated_at""",
+                (budget_date, count, utc_now()),
+            )
+            return count
+
+    def record_fetch_attempt(
+        self, run_id: str, source_id: Optional[int], attempt: int, outcome: str,
+        wait_seconds: float = 0, http_status: Optional[int] = None,
+        error_type: Optional[str] = None,
+    ) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                """INSERT INTO fetch_attempts(
+                       run_id, source_id, attempt, outcome, http_status, wait_seconds,
+                       error_type, attempted_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (run_id, source_id, attempt, outcome, http_status, wait_seconds,
+                 error_type, utc_now()),
+            )
+
+    def record_raw_manifest(
+        self, source_id: int, raw_sha256: str, raw_byte_count: int,
+        local_path: Path, object_key: str, etag: Optional[str],
+        object_version: Optional[str], content_sha256: str,
+    ) -> None:
+        now = utc_now()
+        with self.connect() as connection:
+            connection.execute(
+                """INSERT INTO raw_object_manifests(
+                       source_id, raw_sha256, raw_byte_count, local_path, object_key,
+                       etag, object_version, persisted_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(source_id) DO UPDATE SET
+                     raw_sha256 = excluded.raw_sha256,
+                     raw_byte_count = excluded.raw_byte_count,
+                     local_path = excluded.local_path,
+                     object_key = excluded.object_key,
+                     etag = excluded.etag,
+                     object_version = excluded.object_version,
+                     persisted_at = excluded.persisted_at""",
+                (source_id, raw_sha256, raw_byte_count, str(local_path), object_key,
+                 etag, object_version, now),
+            )
+            connection.execute(
+                """UPDATE sources SET raw_path = ?, raw_sha256 = ?, content_sha256 = ?,
+                   raw_byte_count = ?, fetched_at = ?, status = 'fetched', last_error = NULL
+                   WHERE id = ?""",
+                (str(local_path), raw_sha256, content_sha256, raw_byte_count, now, source_id),
+            )
+
+    def set_disposition(
+        self, source_id: int, disposition: str, reason: str,
+        classifier_version: str, *, reviewed: bool = False,
+    ) -> None:
+        source = self.get_source(source_id)
+        verified = source["official_status"] == "verified"
+        if not verified and disposition == "eligible_evidence":
+            raise ValueError("unverified items can never become eligible evidence")
+        now = utc_now()
+        with self.connect() as connection:
+            connection.execute(
+                """INSERT INTO source_dispositions(
+                       source_id, disposition, reason, classifier_version, verified,
+                       reviewed_at, updated_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(source_id) DO UPDATE SET
+                     disposition = excluded.disposition, reason = excluded.reason,
+                     classifier_version = excluded.classifier_version,
+                     verified = excluded.verified, reviewed_at = excluded.reviewed_at,
+                     updated_at = excluded.updated_at""",
+                (source_id, disposition, reason, classifier_version, int(verified),
+                 now if reviewed else None, now),
+            )
+
+    def disposition_rows(self) -> List[Dict[str, Any]]:
+        self.initialize()
+        with self.connect() as connection:
+            rows = connection.execute(
+                """SELECT d.*, s.external_id, s.source_kind, s.status, s.raw_sha256
+                   FROM source_dispositions d JOIN sources s ON s.id = d.source_id
+                   ORDER BY d.source_id"""
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def source_disposition(self, source_id: int) -> Optional[Dict[str, Any]]:
+        self.initialize()
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM source_dispositions WHERE source_id = ?", (source_id,)
+            ).fetchone()
+        return dict(row) if row else None
 
     def list_sources(
         self, statuses: Optional[Sequence[str]] = None, limit: Optional[int] = None
@@ -498,6 +830,13 @@ class Database:
             connection.execute(
                 "UPDATE sources SET status = 'error', last_error = ? WHERE id = ?",
                 (message[:2000], source_id),
+            )
+
+    def mark_skipped(self, source_id: int) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                "UPDATE sources SET status = 'skipped', last_error = NULL WHERE id = ?",
+                (source_id,),
             )
 
     def replace_documents(
@@ -571,44 +910,65 @@ class Database:
             )
         return {"documents": document_count, "chunks": chunk_count}
 
-    def rebuild_fts(self) -> int:
-        self.initialize()
-        with self.connect() as connection:
-            connection.execute("DROP TRIGGER IF EXISTS chunks_fts_after_insert")
-            connection.execute("DROP TRIGGER IF EXISTS chunks_fts_after_update")
-            connection.execute("DROP TRIGGER IF EXISTS chunks_fts_after_delete")
+    @staticmethod
+    def _remove_unloadable_fts_schema(connection: sqlite3.Connection) -> None:
+        """Remove only the derived FTS objects when their tokenizer cannot load."""
+        connection.commit()
+        schema_version = int(connection.execute("PRAGMA schema_version").fetchone()[0])
+        connection.execute("PRAGMA writable_schema = ON")
+        try:
+            connection.execute(
+                "DELETE FROM sqlite_master WHERE name = ? OR name LIKE ?",
+                ("chunks_fts", "chunks_fts_%"),
+            )
+        finally:
+            connection.execute("PRAGMA writable_schema = OFF")
+        connection.execute("PRAGMA schema_version = %d" % (schema_version + 1))
+        connection.commit()
+        connection.execute("VACUUM")
+
+    @classmethod
+    def _reset_fts(cls, connection: sqlite3.Connection) -> int:
+        connection.execute("DROP TRIGGER IF EXISTS chunks_fts_after_insert")
+        connection.execute("DROP TRIGGER IF EXISTS chunks_fts_after_update")
+        connection.execute("DROP TRIGGER IF EXISTS chunks_fts_after_delete")
+        try:
             connection.execute("DROP TABLE IF EXISTS chunks_fts")
-            try:
-                connection.execute(
-                    """
-                    CREATE VIRTUAL TABLE chunks_fts USING fts5(
-                        text, section_path, speaker,
-                        chunk_id UNINDEXED, source_id UNINDEXED,
-                        tokenize='trigram'
-                    )
-                    """
-                )
-            except sqlite3.OperationalError:
-                connection.execute(
-                    """
-                    CREATE VIRTUAL TABLE chunks_fts USING fts5(
-                        text, section_path, speaker,
-                        chunk_id UNINDEXED, source_id UNINDEXED,
-                        tokenize='unicode61'
-                    )
-                    """
-                )
+        except sqlite3.OperationalError as error:
+            if "no such tokenizer" not in str(error).lower():
+                raise
+            cls._remove_unloadable_fts_schema(connection)
+        try:
             connection.execute(
                 """
-                INSERT INTO chunks_fts (text, section_path, speaker, chunk_id, source_id)
-                SELECT c.text, c.section_path, c.speaker, c.id, d.source_id
-                FROM chunks c
-                JOIN documents d ON d.id = c.document_id
-                WHERE d.evidence_eligible = 1
+                CREATE VIRTUAL TABLE chunks_fts USING fts5(
+                    text, section_path, speaker,
+                    chunk_id UNINDEXED, source_id UNINDEXED,
+                    tokenize='trigram'
+                )
                 """
             )
-            connection.executescript(
+        except sqlite3.OperationalError:
+            connection.execute(
                 """
+                CREATE VIRTUAL TABLE chunks_fts USING fts5(
+                    text, section_path, speaker,
+                    chunk_id UNINDEXED, source_id UNINDEXED,
+                    tokenize='unicode61'
+                )
+                """
+            )
+        connection.execute(
+            """
+            INSERT INTO chunks_fts (text, section_path, speaker, chunk_id, source_id)
+            SELECT c.text, c.section_path, c.speaker, c.id, d.source_id
+            FROM chunks c
+            JOIN documents d ON d.id = c.document_id
+            WHERE d.evidence_eligible = 1
+            """
+        )
+        connection.executescript(
+            """
                 CREATE TRIGGER chunks_fts_after_insert AFTER INSERT ON chunks BEGIN
                     INSERT INTO chunks_fts (
                         text, section_path, speaker, chunk_id, source_id
@@ -633,10 +993,15 @@ class Database:
                 CREATE TRIGGER chunks_fts_after_delete AFTER DELETE ON chunks BEGIN
                     DELETE FROM chunks_fts WHERE chunk_id = OLD.id;
                 END;
-                """
-            )
-            row = connection.execute("SELECT COUNT(*) AS count FROM chunks_fts").fetchone()
-            return int(row["count"])
+            """
+        )
+        row = connection.execute("SELECT COUNT(*) AS count FROM chunks_fts").fetchone()
+        return int(row["count"])
+
+    def rebuild_fts(self) -> int:
+        self.initialize()
+        with self.connect() as connection:
+            return self._reset_fts(connection)
 
     def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         if not query.strip():

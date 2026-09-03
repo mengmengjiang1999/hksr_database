@@ -364,6 +364,33 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(self.database.search("旧文本"), [])
         self.assertEqual(len(self.database.search("全新文本")), 1)
 
+    def test_unloadable_fts_schema_can_be_rebuilt_without_losing_content(self) -> None:
+        with self.database.connect() as connection:
+            connection.execute("PRAGMA writable_schema = ON")
+            writable_schema = bool(connection.execute("PRAGMA writable_schema").fetchone()[0])
+            connection.execute("PRAGMA writable_schema = OFF")
+        if not writable_schema:
+            self.skipTest("this SQLite build disables writable_schema compatibility repair")
+
+        discover_manifest(self.database, self._manifest())
+        source = self.database.list_sources(limit=1)[0]
+        self._write_raw(int(source["id"]), wiki_payload(story="兼容索引文本"))
+        parse_sources(self.database)
+        self.database.rebuild_fts()
+        counts_before = self.database.statistics()["counts"]
+
+        with self.database.connect() as connection:
+            self.database._remove_unloadable_fts_schema(connection)
+        with self.database.connect() as connection:
+            self.assertIsNone(connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE name LIKE 'chunks_fts%' LIMIT 1"
+            ).fetchone())
+            self.assertEqual(connection.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+
+        self.database.rebuild_fts()
+        self.assertEqual(self.database.statistics()["counts"], counts_before)
+        self.assertEqual(len(self.database.search("兼容索引文本")), 1)
+
     def test_search_returns_source_traceability(self) -> None:
         discover_manifest(self.database, self._manifest())
         source = self.database.list_sources(limit=1)[0]

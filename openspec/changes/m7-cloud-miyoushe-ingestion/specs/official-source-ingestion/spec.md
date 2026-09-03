@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Official source identity
-The system MUST register Wiki content by official content ID and MUST accept Miyoushe posts as evidence only when both the post and publisher carry official verification. Every rejected Miyoushe listing item MUST retain a non-evidence disposition and reason for inventory accounting.
+The system MUST treat Miyoushe Wiki content registered by official content ID as the primary official evidence source. It MUST treat official-account posts as supplementary and accept them as evidence only when both the post and publisher carry official verification. Every rejected Miyoushe listing item MUST retain a non-evidence disposition and reason for inventory accounting.
 
 #### Scenario: Unverified post is discovered
 - **WHEN** an account listing contains a post without official status or certification

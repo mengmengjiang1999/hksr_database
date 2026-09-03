@@ -4,6 +4,8 @@ M6B migrated the currently collected five-source corpus into a private Alibaba C
 
 The user wants real collection work to run on ECS and specifically rejects a large one-shot M7B crawl. This is an operational preference rather than a requirement to make local execution technically impossible. The developer workstation is used for editing, review, and mocked or fixture-based tests; runbooks launch real discovery and fetching on ECS.
 
+Miyoushe Wiki is the primary official source. Verified official-account posts are a supplementary corpus and remain subject to classification before they may contribute evidence.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -52,11 +54,15 @@ Alternative: one command walks all pages and downloads every body. Rejected beca
 
 Operators may lower these values. Raising a per-run cap or daily budget requires an explicit override recorded in the run report; scheduled units always use defaults. Initial M7B batches are launched manually and reviewed before the next batch.
 
+For the 2026-09-03 initial M7B inventory, the user first approved a 300-request UTC daily budget and then explicitly removed the daily total limit. The initial-inventory override uses `0` to mean unlimited while retaining request accounting, the 15–30 second interval, ten-body invocation cap, retry limit, and circuit breaker. The ECS private environment records this override; the application and unattended recurring timer retain the 60-request default when no override is supplied.
+
 Alternative: maximize throughput until rate limiting occurs. Rejected because endpoint stability is not guaranteed and speed is not an acceptance objective.
 
 ### Persist cursor and item state in ECS-local SQLite
 
 Add collection runs, account checkpoints, request budgets, source dispositions, fetch attempts, and raw-object manifests to the existing staging database. Cursor updates and discovered items commit atomically after each successful page. An OS file lock prevents overlapping collector runs.
+
+SQLite builds differ across the workstation and ECS. When a transported FTS5 table references an unavailable tokenizer, initialization removes only that derived FTS table and its triggers, compacts the freed pages, and rebuilds the index with the locally supported tokenizer. Source, document, chunk, checkpoint, and raw-object tables remain untouched, and deployment takes a database backup before the first repair.
 
 Alternative: store operational state only in RDS. Rejected for the first full crawl because a local durable spool simplifies pause/resume and avoids coupling every source request to database availability.
 
@@ -72,6 +78,10 @@ Official identity is mandatory but not sufficient for evidence eligibility. Dete
 
 Alternative: index every post from the official account. Rejected because announcements and community operations are not necessarily lore evidence.
 
+### Skip permanent non-zero body responses
+
+An HTTP-successful body response with a non-zero Miyoushe business `retcode` is recorded as `excluded_unavailable`, including only the bounded return code in the sanitized batch report. The source status becomes `skipped`, contributes no raw object or evidence, and is not retried. This follows the user's explicit instruction to skip every non-zero business response. Transport failures, retryable HTTP responses, OSS failures, and circuit-breaker events remain real failures and still stop the guarded batch workflow.
+
 ### Reuse SQLite-to-RDS reconciliation with generalized batch IDs
 
 Extend the guarded real-import batch format to accept M7 collection batch IDs. Each reviewed fetch batch is parsed, indexed, imported, and audited separately. Stable source/content keys remain the identity boundary, and rerunning the same batch must not add rows.
@@ -83,7 +93,7 @@ Provide a systemd oneshot unit and timer with locking, request budgets, and jour
 ## Risks / Trade-offs
 
 - **[Miyoushe changes undocumented response fields or cursor behavior]** → Validate response contracts, retain the last good checkpoint, stop instead of guessing, and quarantine the new payload shape for review.
-- **[The account contains far more posts than the old estimate]** → Bound work by daily request budget and report inventory growth; never convert the estimate into an automatic completion target.
+- **[The account contains far more posts than the old estimate]** → Bound request rate, batch size, retries, and consecutive failures; report inventory growth and never convert the estimate into an automatic completion target.
 - **[HTTP 429 or anti-automation response]** → Honor `Retry-After`, open the circuit breaker, and require a later manual resume; do not rotate identities or evade controls.
 - **[A process stops after OSS upload but before database commit]** → Use deterministic object keys and content hashes so replay is safe.
 - **[OSS RAM role is too broad]** → Restrict it to the one private bucket and the M7 prefix; reject static AccessKeys.
@@ -99,7 +109,7 @@ Provide a systemd oneshot unit and timer with locking, request budgets, and jour
 3. Add OSS upload through the ECS RAM role and verify it with one non-sensitive probe object.
 4. Deploy to ECS and run M7A discovery for at most two pages and fetch at most ten bodies from the documented cloud working directory.
 5. Review the M7A report, classification results, raw-object hashes, parser failures, and RDS reconciliation before continuing.
-6. Run M7B manually in repeated two-page discovery and ten-body fetch batches, never exceeding the daily budget. Pause after every batch for audit.
+6. Run M7B in repeated two-page discovery and ten-body fetch batches under the explicitly authorized initial-inventory budget mode. Audit every generated batch report.
 7. Continue until the official listing reports its terminal cursor and every discovered item has a disposition.
 8. Complete M7C reconciliation, search sampling, reports, and three clean incremental no-change runs.
 9. Install the timer disabled; enable it only after explicit approval.

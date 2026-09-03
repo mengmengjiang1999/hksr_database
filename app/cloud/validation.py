@@ -26,7 +26,7 @@ from urllib.parse import urlsplit
 DSN_ENVIRONMENT_VARIABLE = "HKSR_POSTGRES_DSN"
 REQUIRED_EXTENSIONS = ("vector", "pg_jieba", "zhparser", "pg_bigm")
 RUN_ID_PATTERN = re.compile(r"^m6b-[a-z0-9][a-z0-9-]{2,59}$")
-REAL_BATCH_ID_PATTERN = re.compile(r"^m6b-real-[a-z0-9][a-z0-9-]{2,59}$")
+REAL_BATCH_ID_PATTERN = re.compile(r"^m(?:6b|7)-real-[a-z0-9][a-z0-9-]{2,59}$")
 MIGRATIONS_ROOT = Path(__file__).resolve().parents[2] / "migrations" / "postgres"
 M6A_REPORT_PATH = Path(__file__).resolve().parents[2] / "data" / "m6a" / "validation-report.json"
 M6B_DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "m6b"
@@ -59,7 +59,7 @@ def validate_run_id(run_id: str) -> str:
 def validate_real_batch_id(batch_id: str) -> str:
     if not REAL_BATCH_ID_PATTERN.fullmatch(batch_id):
         raise ValueError(
-            "batch_id must match m6b-real-[a-z0-9][a-z0-9-]{2,59}"
+            "batch_id must match m6b-real-* or m7-real-*"
         )
     return batch_id
 

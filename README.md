@@ -51,4 +51,4 @@ curl -X POST http://127.0.0.1:8000/api/admin/sync \
 .venv/bin/python -m app.cli capacity-report
 ```
 
-详细设计和阶段结果见 [开发计划](docs/knowledge-qa-plan.md)、[M5 实施报告](docs/m5-local-product.md)、[M6A 中国大陆云容量报告](docs/m6a-cloud-capacity-validation.md)与 [M7 后续路线图](docs/post-m7-roadmap.md)。
+详细设计和阶段结果见 [开发计划](docs/knowledge-qa-plan.md)、[M5 实施报告](docs/m5-local-product.md)、[M6A 中国大陆云容量报告](docs/m6a-cloud-capacity-validation.md)与 [M7 后续路线图](docs/post-m7-roadmap.md)。云端登录和无敏感信息的交接方式见 [阿里云与数据库访问指南](docs/cloud-access-guide.md)。

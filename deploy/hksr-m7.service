@@ -1,0 +1,18 @@
+[Unit]
+Description=HKSR bounded Miyoushe incremental collection
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ecs-user/hksr_database
+Environment=HKSR_PROJECT_DIR=/home/ecs-user/hksr_database
+EnvironmentFile=%h/.config/hksr/m7.env
+ExecStart=/home/ecs-user/hksr_database/deploy/run-m7-incremental.sh
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

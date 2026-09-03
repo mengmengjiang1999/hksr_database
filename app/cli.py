@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -24,11 +25,18 @@ from app.cloud import (
     write_json_report,
 )
 from app.collectors import (
+    CollectionPolicy,
+    M7Collector,
+    OssRamRoleUploader,
+    build_collection_report,
     discover_manifest,
     discover_official_account,
     discover_wiki_search,
     fetch_sources,
     parse_sources,
+    exclusive_lock,
+    review_disposition,
+    write_report as write_m7_report,
 )
 from app.models.database import Database
 from app.knowledge import audit_relations, build_relations, list_relations, review_relation
@@ -51,6 +59,8 @@ DEFAULT_M6B_IMPORT_REPORTS = (
     Path("data/m6b/runs/real-import-first.json"),
     Path("data/m6b/runs/real-import-second.json"),
 )
+DEFAULT_M7_RAW_ROOT = Path("data/m7/spool")
+DEFAULT_M7_LOCK = Path("data/m7/collector.lock")
 
 
 def _print(value: object) -> None:
@@ -211,6 +221,49 @@ def build_parser() -> argparse.ArgumentParser:
     cloud_acceptance.add_argument(
         "--output-markdown", type=Path, default=Path("docs/m6b-acceptance-report.md")
     )
+
+    m7_discover = subparsers.add_parser(
+        "m7-discover", help="Run one bounded official-account metadata batch"
+    )
+    m7_discover.add_argument("--uid", required=True)
+    m7_discover.add_argument("--pages", type=int, default=2)
+    m7_discover.add_argument("--allow-cap-override", action="store_true")
+    m7_discover.add_argument("--daily-budget", type=int, default=60)
+    m7_discover.add_argument("--minimum-delay", type=float, default=15)
+    m7_discover.add_argument("--maximum-delay", type=float, default=30)
+    m7_discover.add_argument("--timeout", type=int, default=30)
+    m7_discover.add_argument("--lock", type=Path, default=DEFAULT_M7_LOCK)
+    m7_discover.add_argument("--output", type=Path)
+
+    m7_fetch = subparsers.add_parser(
+        "m7-fetch", help="Fetch and persist one bounded official-post batch"
+    )
+    m7_fetch.add_argument("--limit", type=int, default=10)
+    m7_fetch.add_argument("--allow-cap-override", action="store_true")
+    m7_fetch.add_argument("--daily-budget", type=int, default=60)
+    m7_fetch.add_argument("--minimum-delay", type=float, default=15)
+    m7_fetch.add_argument("--maximum-delay", type=float, default=30)
+    m7_fetch.add_argument("--timeout", type=int, default=30)
+    m7_fetch.add_argument("--raw-root", type=Path, default=DEFAULT_M7_RAW_ROOT)
+    m7_fetch.add_argument("--oss-bucket", default=os.environ.get("HKSR_M7_OSS_BUCKET", ""))
+    m7_fetch.add_argument("--oss-endpoint", default=os.environ.get("HKSR_M7_OSS_ENDPOINT", ""))
+    m7_fetch.add_argument("--ram-role", default=os.environ.get("HKSR_M7_RAM_ROLE", ""))
+    m7_fetch.add_argument("--oss-prefix", default="m7/raw")
+    m7_fetch.add_argument("--lock", type=Path, default=DEFAULT_M7_LOCK)
+    m7_fetch.add_argument("--output", type=Path)
+
+    m7_review = subparsers.add_parser(
+        "m7-review", help="Record a reviewed content disposition without refetching"
+    )
+    m7_review.add_argument("external_id")
+    m7_review.add_argument(
+        "disposition", choices=("eligible_evidence", "excluded_operational",
+                                "missing_official_text", "manual_review")
+    )
+    m7_review.add_argument("--reason", required=True)
+
+    m7_report = subparsers.add_parser("m7-report", help="Build a sanitized M7 report")
+    m7_report.add_argument("--output", type=Path)
     return parser
 
 
@@ -326,6 +379,44 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         result = build_capacity_report(
             arguments.database, arguments.raw_root, arguments.assumptions
         )
+    elif arguments.command == "m7-discover":
+        if arguments.pages > 2 and not arguments.allow_cap_override:
+            raise ValueError("raising the two-page cap requires --allow-cap-override")
+        policy = CollectionPolicy(
+            discovery_pages=arguments.pages, daily_budget=arguments.daily_budget,
+            minimum_delay=arguments.minimum_delay, maximum_delay=arguments.maximum_delay,
+        )
+        with exclusive_lock(arguments.lock):
+            result = M7Collector(database, policy=policy).discover(
+                arguments.uid, timeout=arguments.timeout
+            )
+        if arguments.output:
+            write_m7_report(arguments.output, result)
+    elif arguments.command == "m7-fetch":
+        if arguments.limit > 10 and not arguments.allow_cap_override:
+            raise ValueError("raising the ten-post cap requires --allow-cap-override")
+        policy = CollectionPolicy(
+            fetch_posts=arguments.limit, daily_budget=arguments.daily_budget,
+            minimum_delay=arguments.minimum_delay, maximum_delay=arguments.maximum_delay,
+        )
+        uploader = OssRamRoleUploader(
+            arguments.oss_bucket, arguments.oss_endpoint, arguments.ram_role
+        )
+        with exclusive_lock(arguments.lock):
+            result = M7Collector(database, policy=policy).fetch(
+                arguments.raw_root, uploader, timeout=arguments.timeout,
+                object_prefix=arguments.oss_prefix,
+            )
+        if arguments.output:
+            write_m7_report(arguments.output, result)
+    elif arguments.command == "m7-review":
+        result = review_disposition(
+            database, arguments.external_id, arguments.disposition, arguments.reason
+        )
+    elif arguments.command == "m7-report":
+        result = build_collection_report(database)
+        if arguments.output:
+            write_m7_report(arguments.output, result)
     elif arguments.command == "cloud-acceptance-report":
         imports = arguments.import_reports or list(DEFAULT_M6B_IMPORT_REPORTS)
         audit = read_json_report(arguments.database_audit) if arguments.database_audit else None

@@ -14,8 +14,12 @@ The collector MUST enforce bounded discovery and fetch batches, request delay ji
 - **WHEN** an operator starts one fetch invocation without overrides
 - **THEN** no more than ten post bodies are attempted, requests wait 15–30 seconds apart, and the shared daily total cannot exceed 60 requests
 
+#### Scenario: An approved unlimited initial-inventory override runs
+- **WHEN** an operator supplies the recorded zero-valued M7B daily-budget override from the ECS private configuration
+- **THEN** discovery and fetching continue recording every request without a daily-total cutoff while retaining the default 15–30 second request delay, per-invocation caps, retry limit, and circuit breaker
+
 #### Scenario: Remote failures repeat
-- **WHEN** three consecutive source requests fail or the daily request budget is exhausted
+- **WHEN** three consecutive source requests fail or a finite daily request budget is exhausted
 - **THEN** the collector stops the run, preserves its checkpoint, and issues no further request until a later resume
 
 ### Requirement: Resumable terminal-cursor discovery
@@ -29,6 +33,13 @@ The collector MUST atomically persist each successful official-account page, its
 - **WHEN** the official API reports its terminal condition
 - **THEN** the account checkpoint is marked complete with the observed item count and terminal timestamp
 
+### Requirement: Portable derived SQLite index
+The ECS staging database MUST preserve source data and collection checkpoints when its SQLite runtime cannot load a tokenizer used by a transported derived FTS index, and MUST rebuild only the derived FTS objects with a supported tokenizer.
+
+#### Scenario: ECS cannot load a transported trigram index
+- **WHEN** database initialization encounters `no such tokenizer` while opening the existing FTS table
+- **THEN** it removes and rebuilds only the FTS table and triggers, retains all source and collection rows, and passes SQLite integrity validation
+
 ### Requirement: Durable private raw snapshots
 Every successfully fetched body MUST be canonicalized, hashed, retained in the private local spool, and uploaded through the ECS RAM role to the designated private OSS prefix before the source is marked fetched.
 
@@ -37,7 +48,11 @@ Every successfully fetched body MUST be canonicalized, hashed, retained in the p
 - **THEN** the source remains pending or failed with its local hash recorded and is not parsed as durable evidence
 
 ### Requirement: Explicit content disposition
-Every discovered official item MUST have one of the versioned dispositions `eligible_evidence`, `excluded_operational`, `missing_official_text`, or `manual_review`, with a reason and classifier version.
+Every discovered official item MUST have one of the versioned dispositions `eligible_evidence`, `excluded_operational`, `excluded_unavailable`, `missing_official_text`, or `manual_review`, with a reason and classifier version.
+
+#### Scenario: A body endpoint returns a non-zero business code
+- **WHEN** an HTTP-successful Miyoushe body response has a non-zero `retcode`
+- **THEN** the item is marked `excluded_unavailable` and `skipped`, the bounded return code is counted in the sanitized report, no raw body or evidence is persisted, and later fetch batches do not retry it
 
 #### Scenario: An official video has no machine-readable official text
 - **WHEN** its fetched response contains metadata but no official body or subtitle text

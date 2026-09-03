@@ -1,0 +1,11 @@
+[Unit]
+Description=HKSR disabled-by-default Miyoushe incremental timer
+
+[Timer]
+OnCalendar=*-*-* 04:30:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=30m
+Unit=hksr-m7.service
+
+[Install]
+WantedBy=timers.target

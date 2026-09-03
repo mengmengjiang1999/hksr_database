@@ -303,8 +303,15 @@ def parse_sources(
 ) -> Dict[str, int]:
     statuses = ["fetched", "parsed"] if force else ["fetched"]
     sources = database.list_sources(statuses=statuses, limit=limit)
-    result = {"attempted": 0, "parsed": 0, "documents": 0, "chunks": 0, "failed": 0}
+    result = {
+        "attempted": 0, "parsed": 0, "documents": 0, "chunks": 0,
+        "failed": 0, "skipped_ineligible": 0,
+    }
     for source in sources:
+        disposition = database.source_disposition(int(source["id"]))
+        if disposition and disposition["disposition"] != "eligible_evidence":
+            result["skipped_ineligible"] += 1
+            continue
         result["attempted"] += 1
         try:
             raw_path = source["raw_path"]
