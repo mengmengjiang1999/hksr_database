@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "people": [
+    {
+      "stable_key": "person:himeko",
+      "canonical_name": "姬子",
+      "description": "星穹列车的无名客；与各可玩形态分开建模的剧情人物。",
+      "names": [
+        {
+          "name": "姬子",
+          "name_type": "canonical",
+          "is_official": true,
+          "evidence_id": "mihoyo_wiki:7484:module:19:f38ee6fadbbf:0000"
+        }
+      ],
+      "playable_forms": [
+        {
+          "stable_key": "form:himeko:base",
+          "canonical_name": "姬子",
+          "entity_type": "character",
+          "description": "姬子的基础可玩形态。",
+          "form_kind": "base",
+          "link_status": "approved",
+          "evidence_id": "mihoyo_wiki:7484:module:19:f38ee6fadbbf:0000",
+          "names": [
+            {
+              "name": "姬子",
+              "name_type": "canonical",
+              "is_official": true,
+              "evidence_id": "mihoyo_wiki:7484:module:19:f38ee6fadbbf:0000"
+            }
+          ]
+        },
+        {
+          "stable_key": "form:himeko:departure",
+          "canonical_name": "姬子·启行",
+          "entity_type": "playable_form",
+          "description": "姬子的独立可玩形态。",
+          "form_kind": "alternate",
+          "link_status": "approved",
+          "evidence_id": "mihoyo_wiki:7484:module:19:f38ee6fadbbf:0000",
+          "names": [
+            {
+              "name": "姬子·启行",
+              "name_type": "canonical",
+              "is_official": true,
+              "evidence_id": "mihoyo_wiki:7484:module:11:e7eb585da54b:0000"
+            },
+            {
+              "name": "姬子•启行",
+              "name_type": "punctuation_variant",
+              "is_official": true,
+              "evidence_id": "mihoyo_wiki:7484:module:11:e7eb585da54b:0000"
+            },
+            {
+              "name": "姬子SP",
+              "name_type": "player_shorthand",
+              "is_official": false,
+              "evidence_id": null
+            },
+            {
+              "name": "姬子sp",
+              "name_type": "player_shorthand",
+              "is_official": false,
+              "evidence_id": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

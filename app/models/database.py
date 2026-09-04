@@ -208,6 +208,48 @@ SQLITE_MIGRATIONS = (
         );
         """,
     ),
+    (
+        3,
+        """
+        CREATE TABLE IF NOT EXISTS narrative_people (
+            stable_key TEXT PRIMARY KEY,
+            canonical_name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            schema_version INTEGER NOT NULL,
+            UNIQUE(canonical_name)
+        );
+        CREATE TABLE IF NOT EXISTS playable_forms (
+            stable_key TEXT PRIMARY KEY,
+            narrative_person_key TEXT NOT NULL
+                REFERENCES narrative_people(stable_key) ON DELETE RESTRICT,
+            entity_id INTEGER NOT NULL UNIQUE
+                REFERENCES entities(id) ON DELETE RESTRICT,
+            canonical_name TEXT NOT NULL,
+            form_kind TEXT NOT NULL CHECK(form_kind IN ('base', 'alternate')),
+            link_status TEXT NOT NULL CHECK(link_status IN ('approved', 'pending', 'rejected')),
+            evidence_id TEXT,
+            schema_version INTEGER NOT NULL,
+            UNIQUE(narrative_person_key, canonical_name)
+        );
+        CREATE TABLE IF NOT EXISTS identity_names (
+            id INTEGER PRIMARY KEY,
+            owner_kind TEXT NOT NULL CHECK(owner_kind IN ('person', 'form')),
+            owner_key TEXT NOT NULL,
+            name TEXT NOT NULL,
+            name_type TEXT NOT NULL CHECK(name_type IN (
+                'canonical', 'official_alias', 'punctuation_variant', 'player_shorthand'
+            )),
+            is_official INTEGER NOT NULL CHECK(is_official IN (0, 1)),
+            evidence_id TEXT,
+            schema_version INTEGER NOT NULL,
+            UNIQUE(owner_kind, owner_key, name)
+        );
+        CREATE INDEX IF NOT EXISTS idx_playable_forms_person
+            ON playable_forms(narrative_person_key, link_status);
+        CREATE INDEX IF NOT EXISTS idx_identity_names_name
+            ON identity_names(name, owner_kind);
+        """,
+    ),
 )
 
 
@@ -324,13 +366,46 @@ class Database:
                     alias_count += 1
 
             if retained_ids:
+                identity_entity_ids = [
+                    int(row[0]) for row in connection.execute(
+                        "SELECT entity_id FROM playable_forms"
+                    )
+                ]
+                retained_ids = sorted(set(retained_ids + identity_entity_ids))
                 placeholders = ",".join("?" for _ in retained_ids)
                 connection.execute(
                     "DELETE FROM entities WHERE id NOT IN (%s)" % placeholders,
                     retained_ids,
                 )
             else:
-                connection.execute("DELETE FROM entities")
+                identity_entity_ids = [
+                    int(row[0]) for row in connection.execute(
+                        "SELECT entity_id FROM playable_forms"
+                    )
+                ]
+                if identity_entity_ids:
+                    placeholders = ",".join("?" for _ in identity_entity_ids)
+                    connection.execute(
+                        "DELETE FROM entities WHERE id NOT IN (%s)" % placeholders,
+                        identity_entity_ids,
+                    )
+                else:
+                    connection.execute("DELETE FROM entities")
+
+            # Identity-owned names are authoritative for playable forms and must
+            # survive a legacy entity-index rebuild.
+            identity_names = connection.execute(
+                """SELECT pf.entity_id, n.name, n.name_type
+                   FROM playable_forms pf JOIN identity_names n
+                     ON n.owner_kind='form' AND n.owner_key=pf.stable_key"""
+            ).fetchall()
+            for name in identity_names:
+                connection.execute(
+                    """INSERT INTO aliases(entity_id, alias, alias_type) VALUES (?, ?, ?)
+                       ON CONFLICT(entity_id, alias) DO UPDATE SET alias_type=excluded.alias_type""",
+                    (name["entity_id"], name["name"],
+                     "player" if name["name_type"] == "player_shorthand" else name["name_type"]),
+                )
 
             rows = connection.execute(
                 """

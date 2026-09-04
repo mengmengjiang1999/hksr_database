@@ -1,0 +1,1052 @@
+{
+  "corpus_snapshot": {
+    "counts": {
+      "aliases": 47,
+      "chunks": 1890,
+      "documents": 1034,
+      "eligible_evidence": 1890,
+      "entities": 36,
+      "relations": 383,
+      "semantic_vectors": 1826,
+      "sources": 7827
+    },
+    "evidence_fingerprint": "80e63e4447b789ffe0f371b91acaffbab4d8aaa5c19182d08b28cf618d6d35ac",
+    "fingerprint": "6f0a7add4f3c9049931850f3df873ccb97f524f9c60d881b9e5f9e1150277a92",
+    "schema_version": 1,
+    "source_kinds": {
+      "official_article": 1901,
+      "official_video": 634,
+      "wiki_achievement": 682,
+      "wiki_character": 98,
+      "wiki_collectible": 8,
+      "wiki_consumable": 290,
+      "wiki_dreamscape_pass": 18,
+      "wiki_endgame": 650,
+      "wiki_enemy": 226,
+      "wiki_event": 136,
+      "wiki_furniture": 64,
+      "wiki_light_cone": 168,
+      "wiki_material": 195,
+      "wiki_outfit": 166,
+      "wiki_periodical": 93,
+      "wiki_quest": 686,
+      "wiki_quest_item": 509,
+      "wiki_readable": 652,
+      "wiki_relic": 60,
+      "wiki_shop": 17,
+      "wiki_simulated_universe": 128,
+      "wiki_special_item": 137,
+      "wiki_valuable": 309
+    },
+    "source_providers": {
+      "mihoyo_wiki": 5292,
+      "miyoushe": 2535
+    },
+    "source_statuses": {
+      "discovered": 4858,
+      "fetched": 12,
+      "parsed": 784,
+      "skipped": 2173
+    }
+  },
+  "dataset_fingerprint": "862813401e5b5e867ed90894148fad0a720aa1afd0a2e85274f239d8a8833981",
+  "dataset_version": "m9-real-questions-v1",
+  "details": [
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-himeko-01",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:11:e7eb585da54b:0000",
+        "mihoyo_wiki:407:module:11:e9ed5e7b915e:0000",
+        "mihoyo_wiki:396:tab:0000:95802b2bed68:0004",
+        "miyoushe:76752090:body:70169347f8ae:0000",
+        "miyoushe:76526775:body:f27f0e7970ec:0000",
+        "mihoyo_wiki:7484:module:14:f89122bb0354:0001",
+        "mihoyo_wiki:407:module:13:8d629399b0da:0002",
+        "miyoushe:76647367:body:c89510538e13:0000"
+      ],
+      "top_score": 0.329747
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-himeko-02",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:11:e7eb585da54b:0000",
+        "mihoyo_wiki:407:module:11:e9ed5e7b915e:0000",
+        "mihoyo_wiki:396:tab:0000:95802b2bed68:0004",
+        "mihoyo_wiki:7484:module:20:afb85eae0887:0005",
+        "miyoushe:76752090:body:70169347f8ae:0000",
+        "miyoushe:76526775:body:f27f0e7970ec:0000",
+        "mihoyo_wiki:407:module:13:8d629399b0da:0002",
+        "miyoushe:76647367:body:c89510538e13:0000"
+      ],
+      "top_score": 0.347538
+    },
+    {
+      "correct": false,
+      "expected_outcome": "answerable",
+      "id": "desc-himeko-03",
+      "intent": "descriptive",
+      "observed_classification": "ranking_miss",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:20:bdbab5490c8c:0000",
+        "mihoyo_wiki:407:module:11:e9ed5e7b915e:0000",
+        "mihoyo_wiki:7484:module:19:abe499dab400:0005",
+        "miyoushe:76752090:body:70169347f8ae:0000",
+        "miyoushe:76526775:body:f27f0e7970ec:0000",
+        "mihoyo_wiki:407:module:13:8d629399b0da:0002",
+        "miyoushe:76647367:body:c89510538e13:0000",
+        "miyoushe:76662840:body:4d59783be85a:0000"
+      ],
+      "top_score": 0.321945
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-himeko-04",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:19:f38ee6fadbbf:0000",
+        "mihoyo_wiki:407:module:14:24a8099f4c0a:0000",
+        "mihoyo_wiki:396:tab:0000:95802b2bed68:0004",
+        "miyoushe:76752090:body:70169347f8ae:0000",
+        "mihoyo_wiki:7484:module:11:e7eb585da54b:0000",
+        "mihoyo_wiki:407:module:11:e9ed5e7b915e:0000",
+        "miyoushe:76526775:body:f27f0e7970ec:0000",
+        "miyoushe:76647367:body:c89510538e13:0000"
+      ],
+      "top_score": 0.327674
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-himeko-05",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:19:9481455e90cd:0002",
+        "mihoyo_wiki:406:module:20:252e72d2d1af:0001",
+        "mihoyo_wiki:560:module:20:90d1b8d9de26:0002",
+        "mihoyo_wiki:7484:module:20:0295ac9ee10f:0002",
+        "miyoushe:76662840:body:4d59783be85a:0000",
+        "mihoyo_wiki:7484:module:20:afb85eae0887:0005",
+        "miyoushe:76422972:body:1392052a1fc3:0000",
+        "mihoyo_wiki:7484:module:20:b7e89b14c6e0:0001"
+      ],
+      "top_score": 0.397174
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-himeko-06",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:19:9481455e90cd:0002",
+        "mihoyo_wiki:392:tab:0000:a454c655fd55:0003",
+        "mihoyo_wiki:152:tab:0000:9863ba08f378:0024",
+        "mihoyo_wiki:568:tab:0000:715d48877651:0000",
+        "miyoushe:75781448:body:5f7289d4e7e7:0000",
+        "mihoyo_wiki:7181:tab:0000:f43e59daa9e7:0009",
+        "mihoyo_wiki:568:tab:0000:b87740e63964:0004",
+        "miyoushe:74895897:body:a543adbbafbc:0000"
+      ],
+      "top_score": 0.187628
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-himeko-07",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:20:afb85eae0887:0005",
+        "mihoyo_wiki:7484:module:19:22aaa00baf7e:0004",
+        "mihoyo_wiki:261:tab:0000:99858c3d7fcd:0018",
+        "mihoyo_wiki:614:tab:0000:04401939823e:0000",
+        "mihoyo_wiki:311:tab:0000:42a175c4bad5:0003",
+        "mihoyo_wiki:407:module:20:2844b02362ae:0001",
+        "mihoyo_wiki:453:module:20:4851503af206:0000",
+        "mihoyo_wiki:422:module:19:f8e960019233:0000"
+      ],
+      "top_score": 0.205392
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-himeko-08",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:19:abe499dab400:0005",
+        "mihoyo_wiki:407:module:19:0a1873720bac:0003",
+        "miyoushe:77136451:body:168059475421:0000",
+        "mihoyo_wiki:7484:module:11:e7eb585da54b:0000",
+        "mihoyo_wiki:407:module:11:e9ed5e7b915e:0000",
+        "miyoushe:76752090:body:70169347f8ae:0000",
+        "miyoushe:76526775:body:f27f0e7970ec:0000",
+        "miyoushe:76647367:body:c89510538e13:0000"
+      ],
+      "top_score": 0.405995
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "relation-himeko-01",
+      "intent": "relation",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:407:module:20:4be58f894f4a:0000",
+        "mihoyo_wiki:7484:module:20:bdbab5490c8c:0000",
+        "mihoyo_wiki:411:module:20:6e94764ccbe8:0001",
+        "miyoushe:76526775:body:f27f0e7970ec:0000",
+        "mihoyo_wiki:7484:module:13:9a3cbb7808ac:0003",
+        "mihoyo_wiki:238:tab:0000:58d818a28984:0001",
+        "mihoyo_wiki:407:module:20:2844b02362ae:0001",
+        "miyoushe:76552925:body:260592ece89b:0000"
+      ],
+      "top_score": 0.331689
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "temp-himeko-01",
+      "intent": "temporal",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:20:bdbab5490c8c:0000",
+        "miyoushe:75736560:body:d6f0fce279e7:0000",
+        "miyoushe:75942518:body:4dd68a4c2b5d:0000",
+        "miyoushe:74928605:body:6cba986346fb:0001",
+        "miyoushe:74928605:body:375824bcc54d:0000",
+        "mihoyo_wiki:7181:tab:0000:78b48a721213:0001",
+        "mihoyo_wiki:560:module:11:6ac7b3d57dde:0000",
+        "mihoyo_wiki:406:module:11:f5f5330f4cf7:0000"
+      ],
+      "top_score": 0.454303
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-himeko-09",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:20:afb85eae0887:0005",
+        "miyoushe:76662840:body:4d59783be85a:0000",
+        "mihoyo_wiki:7484:module:13:939cf2c65308:0002",
+        "mihoyo_wiki:560:module:20:90d1b8d9de26:0002",
+        "miyoushe:76422972:body:1392052a1fc3:0000",
+        "mihoyo_wiki:7484:module:13:d5a939b5e27d:0001",
+        "mihoyo_wiki:406:module:20:252e72d2d1af:0001",
+        "mihoyo_wiki:7484:module:20:b7e89b14c6e0:0001"
+      ],
+      "top_score": 0.32904
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "relation-himeko-02",
+      "intent": "relation",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:48:module:19:96c90f0d1447:0001",
+        "mihoyo_wiki:7484:module:20:596861a96475:0004",
+        "mihoyo_wiki:407:module:20:fa684933f809:0002",
+        "mihoyo_wiki:48:module:20:12dc27e8d041:0000",
+        "miyoushe:76552925:body:260592ece89b:0000",
+        "mihoyo_wiki:407:module:20:2844b02362ae:0001",
+        "mihoyo_wiki:48:module:20:1aa07134f48f:0005",
+        "mihoyo_wiki:7484:module:20:0295ac9ee10f:0002"
+      ],
+      "top_score": 0.395935
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-himeko-10",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:20:0d8ed1fc8472:0003",
+        "mihoyo_wiki:7484:module:20:596861a96475:0004",
+        "mihoyo_wiki:238:tab:0000:d3afbe3ae7e5:0007",
+        "mihoyo_wiki:43:tab:0000:c885d36412cf:0000",
+        "miyoushe:76661906:body:abe5da72f9a0:0000",
+        "miyoushe:76661906:body:b367874a6f4b:0004",
+        "miyoushe:73611546:body:eeba66557ba0:0000",
+        "miyoushe:76661906:body:6f8490642cf6:0002"
+      ],
+      "top_score": 0.331398
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "acq-aglaea-01",
+      "intent": "acquisition",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:6885:tab:0000:5dd2af6f7ddc:0000",
+        "miyoushe:61534034:body:1b8e937a72aa:0000",
+        "mihoyo_wiki:48:module:20:40f117504c34:0004",
+        "mihoyo_wiki:411:module:20:6e94764ccbe8:0001",
+        "mihoyo_wiki:48:module:20:c44aae253f56:0002",
+        "miyoushe:75322548:body:6134b949e580:0001",
+        "mihoyo_wiki:613:tab:0000:0414c00e5c96:0000",
+        "mihoyo_wiki:631:tab:0000:158c8402ba49:0000"
+      ],
+      "top_score": 0.510158
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-aglaea-01",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:6885:tab:0000:5dd2af6f7ddc:0000",
+        "miyoushe:61534034:body:1b8e937a72aa:0000",
+        "mihoyo_wiki:48:module:20:40f117504c34:0004",
+        "mihoyo_wiki:411:module:20:6e94764ccbe8:0001",
+        "mihoyo_wiki:48:module:20:c44aae253f56:0002",
+        "miyoushe:75322548:body:6134b949e580:0001",
+        "mihoyo_wiki:407:module:19:24ed4d5d4153:0002",
+        "mihoyo_wiki:565:module:19:d964ee127844:0000"
+      ],
+      "top_score": 0.454955
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-aglaea-02",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:6885:tab:0000:5dd2af6f7ddc:0000",
+        "miyoushe:61534034:body:1b8e937a72aa:0000",
+        "mihoyo_wiki:48:module:20:40f117504c34:0004",
+        "mihoyo_wiki:411:module:20:6e94764ccbe8:0001",
+        "miyoushe:75322548:body:6134b949e580:0001",
+        "mihoyo_wiki:48:module:20:c44aae253f56:0002",
+        "mihoyo_wiki:622:tab:0000:8dbdb4997b48:0001",
+        "mihoyo_wiki:49:module:19:9b90f173ed25:0001"
+      ],
+      "top_score": 0.467293
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-quest-01",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7181:tab:0000:c2e4f37cf6c3:0000",
+        "mihoyo_wiki:7181:tab:0000:c59d10891904:0014",
+        "mihoyo_wiki:7181:tab:0000:1bdeb7b6f17d:0002",
+        "mihoyo_wiki:7181:tab:0000:78b48a721213:0001",
+        "mihoyo_wiki:7181:tab:0000:eb5eececb610:0003",
+        "mihoyo_wiki:7181:tab:0000:72f89698af48:0004",
+        "mihoyo_wiki:7484:module:20:596861a96475:0004",
+        "mihoyo_wiki:7181:tab:0000:af2dc816558f:0005"
+      ],
+      "top_score": 0.490775
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-quest-02",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7181:tab:0000:c2e4f37cf6c3:0000",
+        "mihoyo_wiki:7181:tab:0000:c59d10891904:0014",
+        "mihoyo_wiki:7181:tab:0000:78b48a721213:0001",
+        "mihoyo_wiki:7181:tab:0000:1bdeb7b6f17d:0002",
+        "mihoyo_wiki:7181:tab:0000:eb5eececb610:0003",
+        "mihoyo_wiki:7181:tab:0000:72f89698af48:0004",
+        "mihoyo_wiki:7484:module:20:596861a96475:0004",
+        "mihoyo_wiki:7181:tab:0000:af2dc816558f:0005"
+      ],
+      "top_score": 0.511798
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-quest-03",
+      "intent": "identity",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7181:tab:0000:78b48a721213:0001",
+        "mihoyo_wiki:152:tab:0000:d85119b57fc5:0018",
+        "mihoyo_wiki:7181:tab:0000:b07ce1fd1efc:0012",
+        "mihoyo_wiki:88:tab:0000:7258b910d6a2:0000",
+        "mihoyo_wiki:487:tab:0000:d9ee2314e856:0000",
+        "mihoyo_wiki:152:tab:0000:795ad7e2477b:0003",
+        "mihoyo_wiki:95:tab:0000:eefbc24210cb:0000",
+        "mihoyo_wiki:611:tab:0000:a1a1d5f40b4a:0002"
+      ],
+      "top_score": 0.266282
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-quest-04",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7181:tab:0000:b07ce1fd1efc:0012",
+        "mihoyo_wiki:7181:tab:0000:eb5eececb610:0003",
+        "miyoushe:77344382:body:0a706ca39d81:0000",
+        "miyoushe:74135534:body:9f3d260af69c:0000",
+        "miyoushe:74343938:body:e237bfe3fe6c:0000",
+        "miyoushe:77460762:body:a96f0af81ca9:0000",
+        "miyoushe:75523965:body:7a5175943d60:0000",
+        "miyoushe:77459638:body:d0bcb76bd6c4:0000"
+      ],
+      "top_score": 0.324691
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "relation-quest-01",
+      "intent": "relation",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7181:tab:0000:af2dc816558f:0005",
+        "miyoushe:77344382:body:0a706ca39d81:0000",
+        "miyoushe:74155917:body:711fe83fbb5c:0000",
+        "mihoyo_wiki:7181:tab:0000:d03c373fb620:0011",
+        "mihoyo_wiki:7181:tab:0000:1bdeb7b6f17d:0002",
+        "miyoushe:74135534:body:9f3d260af69c:0000",
+        "miyoushe:74343938:body:e237bfe3fe6c:0000",
+        "miyoushe:77460762:body:a96f0af81ca9:0000"
+      ],
+      "top_score": 0.284567
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-quest-05",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7181:tab:0000:9884e3ae0c05:0006",
+        "mihoyo_wiki:152:tab:0000:efde747169fd:0006",
+        "mihoyo_wiki:6885:tab:0000:5dd2af6f7ddc:0000",
+        "mihoyo_wiki:182:tab:0000:3af555387d2f:0000",
+        "mihoyo_wiki:420:tab:0000:8f51c7ebc6b1:0001",
+        "mihoyo_wiki:261:tab:0000:d9b89b83d8e9:0004",
+        "mihoyo_wiki:48:module:19:33960436ac46:0000",
+        "mihoyo_wiki:7484:module:20:0295ac9ee10f:0002"
+      ],
+      "top_score": 0.197206
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "relation-quest-02",
+      "intent": "relation",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7181:tab:0000:9884e3ae0c05:0006",
+        "miyoushe:74633422:body:56649ff30ce9:0000",
+        "miyoushe:74869440:body:b20401f1f4ae:0000",
+        "miyoushe:74729462:body:3f84f603647a:0000",
+        "miyoushe:74659710:body:a7b92b3503cf:0000",
+        "miyoushe:73847467:body:d6a384a21b1c:0000",
+        "mihoyo_wiki:7484:module:20:596861a96475:0004",
+        "mihoyo_wiki:152:tab:0000:efde747169fd:0006"
+      ],
+      "top_score": 0.38919
+    },
+    {
+      "correct": false,
+      "expected_outcome": "answerable",
+      "id": "identity-quest-01",
+      "intent": "identity",
+      "observed_classification": "ranking_miss",
+      "top_evidence_ids": [
+        "miyoushe:75205554:body:1d0c297fa77d:0000",
+        "miyoushe:75339563:body:76a6ae60d2d3:0000",
+        "miyoushe:75168556:body:823a9fa352a4:0000",
+        "miyoushe:75265765:body:0846539bc43b:0000",
+        "miyoushe:73865022:body:379308aa3ece:0000",
+        "miyoushe:75169525:body:8fa426421974:0000",
+        "mihoyo_wiki:7484:module:20:0d8ed1fc8472:0003",
+        "mihoyo_wiki:7181:tab:0000:f43e59daa9e7:0009"
+      ],
+      "top_score": 0.319667
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "relation-quest-03",
+      "intent": "relation",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7181:tab:0000:fcc9aeccb4fd:0010",
+        "mihoyo_wiki:7484:module:19:7d4ec903ed02:0006",
+        "miyoushe:75425358:body:d4d270c93335:0000",
+        "mihoyo_wiki:7181:tab:0000:f43e59daa9e7:0009",
+        "mihoyo_wiki:49:module:20:699ddcadac43:0000",
+        "mihoyo_wiki:407:module:11:e9ed5e7b915e:0000",
+        "miyoushe:73847467:body:d6a384a21b1c:0000",
+        "miyoushe:73077323:body:2c434cbbda21:0000"
+      ],
+      "top_score": 0.348996
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-quest-06",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:124:tab:0000:c1c6dcb34a67:0001",
+        "mihoyo_wiki:124:tab:0000:8c4dbdf02b20:0000",
+        "mihoyo_wiki:411:module:20:8b25db2dee46:0000",
+        "mihoyo_wiki:7484:module:19:22aaa00baf7e:0004",
+        "mihoyo_wiki:7181:tab:0000:d03c373fb620:0011",
+        "miyoushe:76662368:body:41f508b43a83:0000",
+        "mihoyo_wiki:7181:tab:0000:1bdeb7b6f17d:0002",
+        "mihoyo_wiki:212:tab:0000:d96afc70cb83:0000"
+      ],
+      "top_score": 0.382286
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-quest-07",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7181:tab:0000:1bdeb7b6f17d:0002",
+        "mihoyo_wiki:7181:tab:0000:d03c373fb620:0011",
+        "miyoushe:77344382:body:0a706ca39d81:0000",
+        "miyoushe:74135534:body:9f3d260af69c:0000",
+        "miyoushe:74343938:body:e237bfe3fe6c:0000",
+        "miyoushe:77460762:body:a96f0af81ca9:0000",
+        "miyoushe:75523965:body:7a5175943d60:0000",
+        "miyoushe:77459638:body:d0bcb76bd6c4:0000"
+      ],
+      "top_score": 0.413894
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-quest-08",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7181:tab:0000:3cf96d273aa7:0013",
+        "miyoushe:74155917:body:711fe83fbb5c:0000",
+        "miyoushe:74751748:body:fe8dab3d2db0:0001",
+        "mihoyo_wiki:7181:tab:0000:78b48a721213:0001",
+        "miyoushe:74751748:body:e67cc7f62e5b:0005",
+        "mihoyo_wiki:7484:module:20:596861a96475:0004",
+        "miyoushe:74014494:body:ccf8c39bd2e1:0000",
+        "mihoyo_wiki:7181:tab:0000:af2dc816558f:0005"
+      ],
+      "top_score": 0.351724
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "relation-quest-04",
+      "intent": "relation",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:411:module:11:33d4e0e2f23d:0000",
+        "mihoyo_wiki:7181:tab:0000:3cf96d273aa7:0013",
+        "miyoushe:74928605:body:375824bcc54d:0000",
+        "mihoyo_wiki:411:module:19:cf909d732d92:0003",
+        "miyoushe:74928605:body:6cba986346fb:0001",
+        "miyoushe:74869221:body:284320ef54fa:0001",
+        "miyoushe:76102735:body:68e063dea0b1:0000",
+        "mihoyo_wiki:238:tab:0000:58d818a28984:0001"
+      ],
+      "top_score": 0.378034
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "desc-video-01",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "miyoushe:61534034:body:1b8e937a72aa:0000",
+        "mihoyo_wiki:46:module:19:ca07deccc243:0002",
+        "mihoyo_wiki:435:tab:0000:5a24f603dbfd:0000",
+        "mihoyo_wiki:258:tab:0000:82fef404beea:0016",
+        "mihoyo_wiki:391:tab:0000:c643ab6abdb2:0012",
+        "mihoyo_wiki:245:tab:0000:fd8e56ba6eb1:0026",
+        "mihoyo_wiki:393:tab:0000:9605821ba145:0006",
+        "mihoyo_wiki:564:module:19:fea67f33d19a:0001"
+      ],
+      "top_score": 0.416467
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "identity-video-01",
+      "intent": "identity",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "miyoushe:61534034:body:1b8e937a72aa:0000",
+        "mihoyo_wiki:261:tab:0000:9690886c97cf:0019",
+        "mihoyo_wiki:7484:module:19:dd3b33dd3a08:0001",
+        "mihoyo_wiki:393:tab:0000:9605821ba145:0006",
+        "mihoyo_wiki:168:tab:0000:d615cc1a38ed:0003",
+        "mihoyo_wiki:152:tab:0000:fa9e94448c71:0010",
+        "mihoyo_wiki:92:tab:0000:dc107841012a:0001",
+        "mihoyo_wiki:161:tab:0000:368c9593b44f:0004"
+      ],
+      "top_score": 0.202815
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "temp-article-01",
+      "intent": "temporal",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "miyoushe:77507239:body:9049e59b25df:0000",
+        "miyoushe:77670698:body:a0913e5cceae:0000",
+        "miyoushe:77536395:body:05668b5a98df:0000",
+        "miyoushe:77461137:body:75f3eba6275f:0000",
+        "miyoushe:77459473:body:5f09dc7e1695:0000",
+        "miyoushe:77460004:body:98d04716cebb:0000",
+        "miyoushe:77649744:body:6ed2bdce825e:0000",
+        "miyoushe:77460235:body:776111e072e2:0000"
+      ],
+      "top_score": 0.644338
+    },
+    {
+      "correct": true,
+      "expected_outcome": "answerable",
+      "id": "acq-article-01",
+      "intent": "acquisition",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "miyoushe:77507239:body:9049e59b25df:0000",
+        "miyoushe:77670698:body:a0913e5cceae:0000",
+        "miyoushe:77536395:body:05668b5a98df:0000",
+        "miyoushe:77649744:body:6ed2bdce825e:0000",
+        "miyoushe:77461137:body:75f3eba6275f:0000",
+        "miyoushe:77459473:body:5f09dc7e1695:0000",
+        "miyoushe:77460235:body:776111e072e2:0000",
+        "miyoushe:77759127:body:0c5f57d8b154:0000"
+      ],
+      "top_score": 0.589473
+    },
+    {
+      "correct": true,
+      "expected_outcome": "correct_refusal",
+      "id": "refuse-01",
+      "intent": "descriptive",
+      "observed_classification": "correct_refusal",
+      "top_evidence_ids": [],
+      "top_score": 0.0
+    },
+    {
+      "correct": true,
+      "expected_outcome": "correct_refusal",
+      "id": "refuse-02",
+      "intent": "descriptive",
+      "observed_classification": "correct_refusal",
+      "top_evidence_ids": [],
+      "top_score": 0.0
+    },
+    {
+      "correct": true,
+      "expected_outcome": "correct_refusal",
+      "id": "refuse-03",
+      "intent": "descriptive",
+      "observed_classification": "correct_refusal",
+      "top_evidence_ids": [],
+      "top_score": 0.0
+    },
+    {
+      "correct": true,
+      "expected_outcome": "ambiguous",
+      "id": "ambiguous-01",
+      "intent": "descriptive",
+      "observed_classification": "entity_ambiguity",
+      "top_evidence_ids": [],
+      "top_score": 0.0
+    },
+    {
+      "correct": true,
+      "expected_outcome": "ambiguous",
+      "id": "ambiguous-02",
+      "intent": "descriptive",
+      "observed_classification": "entity_ambiguity",
+      "top_evidence_ids": [],
+      "top_score": 0.0
+    },
+    {
+      "correct": true,
+      "expected_outcome": "ambiguous",
+      "id": "ambiguous-03",
+      "intent": "descriptive",
+      "observed_classification": "entity_ambiguity",
+      "top_evidence_ids": [],
+      "top_score": 0.0
+    },
+    {
+      "correct": true,
+      "expected_outcome": "ambiguous",
+      "id": "ambiguous-04",
+      "intent": "descriptive",
+      "observed_classification": "entity_ambiguity",
+      "top_evidence_ids": [],
+      "top_score": 0.0
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-character-01",
+      "intent": "playable_form",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:11:e7eb585da54b:0000",
+        "miyoushe:76526775:body:f27f0e7970ec:0000",
+        "miyoushe:76752090:body:70169347f8ae:0000",
+        "mihoyo_wiki:7484:module:14:f89122bb0354:0001",
+        "mihoyo_wiki:7484:module:13:9a3cbb7808ac:0003",
+        "miyoushe:76647367:body:c89510538e13:0000",
+        "miyoushe:75425358:body:d4d270c93335:0000",
+        "miyoushe:76662840:body:4d59783be85a:0000"
+      ],
+      "top_score": 0.442671
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-form-01",
+      "intent": "playable_form",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:13:9a3cbb7808ac:0003",
+        "mihoyo_wiki:407:module:11:e9ed5e7b915e:0000",
+        "mihoyo_wiki:7484:module:11:e7eb585da54b:0000",
+        "miyoushe:76752090:body:70169347f8ae:0000",
+        "miyoushe:76526775:body:f27f0e7970ec:0000",
+        "mihoyo_wiki:407:module:13:8d629399b0da:0002",
+        "miyoushe:76662840:body:4d59783be85a:0000",
+        "miyoushe:76647367:body:c89510538e13:0000"
+      ],
+      "top_score": 0.319457
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-relation-01",
+      "intent": "relation",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:7484:module:11:e7eb585da54b:0000",
+        "miyoushe:76752090:body:70169347f8ae:0000",
+        "miyoushe:76526775:body:f27f0e7970ec:0000",
+        "mihoyo_wiki:7484:module:14:f89122bb0354:0001",
+        "miyoushe:76647367:body:c89510538e13:0000",
+        "mihoyo_wiki:7484:module:13:9a3cbb7808ac:0003",
+        "miyoushe:75425358:body:d4d270c93335:0000",
+        "miyoushe:76662840:body:4d59783be85a:0000"
+      ],
+      "top_score": 0.423652
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-lightcone-01",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "miyoushe:76891949:body:099f4d5c2d5b:0000",
+        "mihoyo_wiki:390:tab:0000:aa640126039f:0002",
+        "mihoyo_wiki:285:tab:0000:4f454c5338b3:0001",
+        "miyoushe:76891951:body:a304bb2fe3b6:0000",
+        "mihoyo_wiki:199:tab:0000:0fa622630ad8:0001",
+        "mihoyo_wiki:51:tab:0000:29f28f25ccb5:0001",
+        "mihoyo_wiki:381:tab:0000:8554a68cde42:0001",
+        "mihoyo_wiki:390:tab:0000:843d4d36ed3e:0001"
+      ],
+      "top_score": 0.237206
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-relic-01",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:581:tab:0000:876a9a545ecc:0000",
+        "mihoyo_wiki:581:tab:0000:e0292a917c32:0003",
+        "mihoyo_wiki:581:tab:0000:6593007ced20:0004",
+        "mihoyo_wiki:581:tab:0000:025840c8d513:0001",
+        "mihoyo_wiki:581:tab:0000:d444262fc956:0005",
+        "mihoyo_wiki:581:tab:0000:aa8a19faa718:0002",
+        "mihoyo_wiki:570:tab:0000:f72d414e6675:0002",
+        "mihoyo_wiki:570:tab:0000:132e45cdea89:0001"
+      ],
+      "top_score": 0.255602
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-enemy-01",
+      "intent": "identity",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:251:tab:0000:ed9d9fb06f84:0003",
+        "mihoyo_wiki:437:tab:0000:1937b22ce554:0003",
+        "mihoyo_wiki:437:tab:0000:59cb1f0eef85:0000",
+        "mihoyo_wiki:450:tab:0000:ea602df78bc7:0000",
+        "mihoyo_wiki:391:tab:0000:258906d5d14a:0005",
+        "mihoyo_wiki:261:tab:0000:7ff9bd358622:0008",
+        "mihoyo_wiki:420:tab:0000:96a6aad74f16:0007",
+        "mihoyo_wiki:48:module:20:3d8fc5c7858b:0006"
+      ],
+      "top_score": 0.179461
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-achievement-01",
+      "intent": "acquisition",
+      "observed_classification": "corpus_gap",
+      "top_evidence_ids": [],
+      "top_score": 0.0
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-material-01",
+      "intent": "acquisition",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:582:tab:0000:a5fb5d6503cf:0000",
+        "mihoyo_wiki:583:tab:0000:cfc08e4febd7:0000",
+        "mihoyo_wiki:545:tab:0000:e0291a7a3528:0001",
+        "mihoyo_wiki:584:tab:0000:6da5b3a51b5f:0000",
+        "mihoyo_wiki:585:tab:0000:f747a0a9d4fb:0000",
+        "mihoyo_wiki:541:tab:0000:f7d1831c03dd:0001",
+        "mihoyo_wiki:577:tab:0000:7cc52134fe26:0000",
+        "mihoyo_wiki:336:tab:0000:e371e526e31a:0001"
+      ],
+      "top_score": 0.120179
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-item-01",
+      "intent": "identity",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:442:tab:0000:4bc154d1df62:0000",
+        "mihoyo_wiki:445:tab:0000:f49f0d8f6901:0000",
+        "mihoyo_wiki:527:tab:0000:2e274276f28e:0000",
+        "mihoyo_wiki:421:tab:0000:30e36c787f35:0000",
+        "mihoyo_wiki:412:module:20:cffd5f4b7058:0000",
+        "mihoyo_wiki:391:tab:0000:258906d5d14a:0005",
+        "mihoyo_wiki:261:tab:0000:7ff9bd358622:0008",
+        "mihoyo_wiki:435:tab:0000:3e798d428653:0007"
+      ],
+      "top_score": 0.161232
+    },
+    {
+      "correct": false,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-simulated-01",
+      "intent": "descriptive",
+      "observed_classification": "ranking_miss",
+      "top_evidence_ids": [
+        "miyoushe:74750873:body:848ceb38c35e:0000",
+        "miyoushe:74451245:body:be46c0af6a66:0000",
+        "miyoushe:76035709:body:7803254e4e9d:0000",
+        "miyoushe:75099002:body:cf6305bcdae7:0000",
+        "miyoushe:74244095:body:03f45191bd9e:0000",
+        "miyoushe:73449153:body:7174f08d9d0f:0000",
+        "miyoushe:74451245:body:40170570bb85:0001",
+        "mihoyo_wiki:405:tab:0000:c67b2ec4fdb7:0000"
+      ],
+      "top_score": 0.13244
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-main-01",
+      "intent": "temporal",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:51:tab:0000:29f28f25ccb5:0001",
+        "mihoyo_wiki:49:module:11:0428f431c7bb:0000",
+        "mihoyo_wiki:52:module:11:188cccb3f257:0000",
+        "mihoyo_wiki:199:tab:0000:0fa622630ad8:0001",
+        "mihoyo_wiki:380:module:11:d75adf644ff9:0000",
+        "mihoyo_wiki:381:tab:0000:8554a68cde42:0001",
+        "mihoyo_wiki:513:tab:0000:2b990cf69377:0000",
+        "mihoyo_wiki:141:tab:0000:2d49891629be:0000"
+      ],
+      "top_score": 0.125816
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-side-01",
+      "intent": "acquisition",
+      "observed_classification": "corpus_gap",
+      "top_evidence_ids": [],
+      "top_score": 0.0
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-readable-01",
+      "intent": "descriptive",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:190:tab:0000:4827188c4f7c:0000",
+        "mihoyo_wiki:311:tab:0000:e499b290dc54:0006",
+        "mihoyo_wiki:156:tab:0000:5e543133f49a:0000",
+        "mihoyo_wiki:435:tab:0000:3e798d428653:0007",
+        "mihoyo_wiki:245:tab:0000:974c09bd55e0:0000",
+        "mihoyo_wiki:613:tab:0000:0414c00e5c96:0000",
+        "mihoyo_wiki:421:tab:0000:d99cb3baf93e:0004",
+        "mihoyo_wiki:258:tab:0000:f0f1923f13b3:0001"
+      ],
+      "top_score": 0.196545
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-character-02",
+      "intent": "descriptive",
+      "observed_classification": "corpus_gap",
+      "top_evidence_ids": [],
+      "top_score": 0.0
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-relation-02",
+      "intent": "relation",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:238:tab:0000:6dd5951b714d:0005",
+        "mihoyo_wiki:261:tab:0000:7fe7d0411e76:0014",
+        "mihoyo_wiki:391:tab:0000:1fd88f3598bb:0003",
+        "mihoyo_wiki:406:module:11:f5f5330f4cf7:0000",
+        "mihoyo_wiki:394:tab:0000:373b812dd629:0001",
+        "miyoushe:76552925:body:260592ece89b:0000",
+        "mihoyo_wiki:238:tab:0000:d9a603cfd636:0003",
+        "mihoyo_wiki:406:module:20:c7ff1f68f14b:0002"
+      ],
+      "top_score": 0.340533
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-comparison-01",
+      "intent": "comparison",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:406:module:11:f5f5330f4cf7:0000",
+        "mihoyo_wiki:406:module:14:c7bd2e755296:0000",
+        "mihoyo_wiki:535:tab:0000:e128b61a4b3b:0001",
+        "mihoyo_wiki:411:module:20:6e94764ccbe8:0001",
+        "mihoyo_wiki:48:module:20:40f117504c34:0004",
+        "mihoyo_wiki:7484:module:13:9a3cbb7808ac:0003",
+        "mihoyo_wiki:407:module:20:fa684933f809:0002",
+        "mihoyo_wiki:564:module:20:49348ffc49e8:0002"
+      ],
+      "top_score": 0.311745
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-temporal-01",
+      "intent": "temporal",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:124:tab:0000:c1c6dcb34a67:0001",
+        "mihoyo_wiki:124:tab:0000:8c4dbdf02b20:0000",
+        "mihoyo_wiki:411:module:20:8b25db2dee46:0000",
+        "mihoyo_wiki:7484:module:19:22aaa00baf7e:0004",
+        "mihoyo_wiki:212:tab:0000:d96afc70cb83:0000",
+        "miyoushe:76662368:body:41f508b43a83:0000",
+        "mihoyo_wiki:531:tab:0000:4637d27b5a35:0000",
+        "miyoushe:76827308:body:9b4c5dbd279c:0000"
+      ],
+      "top_score": 0.427101
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-relation-03",
+      "intent": "relation",
+      "observed_classification": "corpus_gap",
+      "top_evidence_ids": [],
+      "top_score": 0.0
+    },
+    {
+      "correct": false,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-acquisition-02",
+      "intent": "acquisition",
+      "observed_classification": "ranking_miss",
+      "top_evidence_ids": [
+        "mihoyo_wiki:84:tab:0000:b3053212b6f2:0000",
+        "miyoushe:74986652:body:b06dace07ffa:0000",
+        "miyoushe:74728255:body:7ba1f025930b:0001",
+        "mihoyo_wiki:530:tab:0000:17682fe2b057:0000",
+        "miyoushe:76554010:body:547b60b4ce0f:0000",
+        "miyoushe:74595310:body:754372f0a79e:0000",
+        "mihoyo_wiki:529:tab:0000:076591be7ebb:0000",
+        "mihoyo_wiki:528:tab:0000:17375fef9948:0000"
+      ],
+      "top_score": 0.134979
+    },
+    {
+      "correct": true,
+      "expected_outcome": "pending_corpus",
+      "id": "pending-unknown-01",
+      "intent": "unknown",
+      "observed_classification": "passed",
+      "top_evidence_ids": [
+        "mihoyo_wiki:411:module:14:b8b3f89346d1:0000",
+        "miyoushe:76891951:body:4cfd51fdb5d5:0002",
+        "miyoushe:73157388:body:6343276306b2:0000",
+        "miyoushe:74633942:body:068c5613992a:0000",
+        "mihoyo_wiki:411:module:19:cf909d732d92:0003",
+        "miyoushe:73882736:body:d1196d45635a:0000",
+        "mihoyo_wiki:411:module:11:33d4e0e2f23d:0000",
+        "mihoyo_wiki:420:tab:0000:db050a5d6530:0000"
+      ],
+      "top_score": 0.329139
+    }
+  ],
+  "schema_version": 1,
+  "summary": {
+    "accuracy": 0.9333,
+    "cases": 60,
+    "correct": 56,
+    "observed_classifications": {
+      "corpus_gap": 4,
+      "correct_refusal": 3,
+      "entity_ambiguity": 4,
+      "passed": 45,
+      "ranking_miss": 4
+    }
+  },
+  "taxonomy_fingerprint": "f4a1122d595a9093ede58da03141e55815614434d3a69fe59b967cc2300461b5",
+  "taxonomy_version": "m9-question-taxonomy-v1"
+}

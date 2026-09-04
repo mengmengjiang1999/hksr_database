@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -10,10 +11,10 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from app.collectors import fetch_sources, parse_sources
-from app.knowledge import audit_relations, build_relations, list_relations
+from app.knowledge import audit_relations, build_relations, identity_catalog, list_relations
 from app.models.database import Database
-from app.qa import answer_question
-from app.retrieval import build_retrieval_index, hybrid_search, normalize_text, source_context
+from app.qa import GenerationService, answer_question, answer_question_legacy, resolve_query_entities
+from app.retrieval import build_retrieval_index, hybrid_search, source_context
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -30,6 +31,7 @@ class AskRequest(BaseModel):
     minimum_score: float = Field(default=0.18, ge=0.0, le=1.0)
     source_kinds: Optional[List[str]] = None
     contexts: Optional[List[str]] = None
+    use_generation: bool = False
 
 
 class SyncRequest(BaseModel):
@@ -77,11 +79,10 @@ def _entity_detail(database: Database, entity_id: int) -> Dict[str, Any]:
 
 
 def _question_entities(database: Database, question: str) -> List[Dict[str, Any]]:
-    normalized = normalize_text(question)
     output = []
+    resolved_ids = {item["entity_id"] for item in resolve_query_entities(database, question)}
     for entity in database.entity_catalog():
-        aliases = [item["text"] for item in entity["aliases"]]
-        if any(normalize_text(alias) in normalized for alias in aliases if alias):
+        if int(entity["id"]) in resolved_ids:
             output.append({
                 "entity": entity,
                 "relations": list_relations(database, entity["canonical_name"]),
@@ -95,6 +96,8 @@ def create_app(
     entity_path: Path = DEFAULT_ENTITIES,
     relation_path: Path = DEFAULT_RELATIONS,
     web_root: Path = DEFAULT_WEB_ROOT,
+    generation_service: Optional[GenerationService] = None,
+    entity_qa_enabled: Optional[bool] = None,
 ) -> FastAPI:
     database = Database(Path(database_path))
     database.initialize()
@@ -108,6 +111,12 @@ def create_app(
     app.state.entity_path = Path(entity_path)
     app.state.relation_path = Path(relation_path)
     app.state.web_root = Path(web_root)
+    app.state.generation_service = generation_service or GenerationService(None)
+    app.state.entity_qa_enabled = (
+        entity_qa_enabled if entity_qa_enabled is not None
+        else os.environ.get("HKSR_M9_ENTITY_QA_ENABLED", "1").strip().lower()
+             not in {"0", "false", "no", "off"}
+    )
 
     @app.get("/", response_class=HTMLResponse)
     def home() -> HTMLResponse:
@@ -118,7 +127,9 @@ def create_app(
 
     @app.get("/api/health")
     def health() -> Dict[str, Any]:
-        return {"status": "ok", "local_only_default": True}
+        return {"status": "ok", "local_only_default": True,
+                "generation_enabled": app.state.generation_service.adapter is not None,
+                "entity_qa_enabled": app.state.entity_qa_enabled}
 
     @app.get("/api/catalog")
     def catalog() -> Dict[str, Any]:
@@ -134,13 +145,29 @@ def create_app(
 
     @app.post("/api/ask")
     def ask(request: AskRequest) -> Dict[str, Any]:
-        result = answer_question(
+        answerer = answer_question if app.state.entity_qa_enabled else answer_question_legacy
+        result = answerer(
             database, request.question.strip(), limit=request.limit,
             minimum_score=request.minimum_score, source_kinds=request.source_kinds,
             contexts=request.contexts,
         )
+        if request.use_generation and app.state.entity_qa_enabled:
+            result = app.state.generation_service.answer(
+                database, request.question.strip(), result, limit=request.limit
+            )
+        else:
+            result.update({"generation_outcome": "not_requested", "generation_fallback": True})
+        if not app.state.entity_qa_enabled:
+            result.update({"intent": "legacy", "resolved_entities": [], "ambiguity": None,
+                           "partial_support": {"is_partial": False, "supported_parts": [],
+                                               "unsupported_parts": []},
+                           "answer_strategy": "legacy_extractive"})
         result["related_entities"] = _question_entities(database, request.question)
         return result
+
+    @app.get("/api/identities")
+    def identities(include_pending: bool = False) -> Dict[str, Any]:
+        return {"people": identity_catalog(database, include_pending=include_pending)}
 
     @app.get("/api/search")
     def search(
@@ -172,6 +199,7 @@ def create_app(
         return {
             **database.statistics(),
             "relation_audit": audit_relations(database, update=False),
+            "generation_telemetry": app.state.generation_service.telemetry(),
         }
 
     @app.post("/api/admin/sync")

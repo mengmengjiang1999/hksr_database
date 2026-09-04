@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "entities": [
-    {"canonical_name": "姬子", "entity_type": "character", "aliases": ["姬子•启行", "姬子·启行"]},
+    {"canonical_name": "姬子", "entity_type": "character", "aliases": []},
     {"canonical_name": "阿格莱雅", "entity_type": "character", "aliases": []},
     {"canonical_name": "开拓者", "entity_type": "character", "aliases": [{"text": "爷", "alias_type": "player"}]},
     {"canonical_name": "三月七", "entity_type": "character", "aliases": [{"text": "小三月", "alias_type": "official"}, {"text": "三月", "alias_type": "player"}]},

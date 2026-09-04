@@ -122,7 +122,7 @@ class M7TestCase(unittest.TestCase):
             tables = {row[0] for row in connection.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )}
-        self.assertEqual([row[0] for row in versions], [1, 2])
+        self.assertEqual([row[0] for row in versions], [1, 2, 3])
         self.assertTrue({
             "collection_runs", "account_checkpoints", "daily_request_budgets",
             "source_dispositions", "fetch_attempts", "raw_object_manifests",

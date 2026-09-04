@@ -40,9 +40,17 @@ from app.collectors import (
     write_report as write_m7_report,
 )
 from app.models.database import Database
-from app.knowledge import audit_relations, build_relations, list_relations, review_relation
-from app.qa import answer_question, evaluate_answers
-from app.retrieval import build_retrieval_index, evaluate_retrieval, hybrid_search
+from app.knowledge import (
+    audit_identity_catalog,
+    audit_relations,
+    build_relations,
+    identity_catalog,
+    list_relations,
+    replace_identity_catalog,
+    review_relation,
+)
+from app.qa import answer_question, evaluate_answers, evaluate_real_questions
+from app.retrieval import build_retrieval_index, evaluate_retrieval, hybrid_search, intent_search
 
 
 DEFAULT_DATABASE = Path("data/database/hksr.sqlite3")
@@ -62,6 +70,9 @@ DEFAULT_M6B_IMPORT_REPORTS = (
 )
 DEFAULT_M7_RAW_ROOT = Path("data/m7/spool")
 DEFAULT_M7_LOCK = Path("data/m7/collector.lock")
+DEFAULT_M9_TAXONOMY = Path("data/m9/question-taxonomy.json")
+DEFAULT_M9_EVALUATION = Path("data/m9/real-questions.json")
+DEFAULT_M9_IDENTITIES = Path("data/m9/identities.json")
 
 
 def _print(value: object) -> None:
@@ -106,6 +117,12 @@ def build_parser() -> argparse.ArgumentParser:
         "in_game", "official_supplement", "promotional", "preview", "development", "unknown"
     ))
 
+    intent_search_parser = subparsers.add_parser(
+        "intent-search", help="Search with deterministic intent and relation safety gates"
+    )
+    intent_search_parser.add_argument("query")
+    intent_search_parser.add_argument("--limit", type=int, default=10)
+
     evaluate = subparsers.add_parser("evaluate", help="Evaluate evidence retrieval")
     evaluate.add_argument("--dataset", type=Path, default=DEFAULT_EVALUATION)
     evaluate.add_argument("--mode", choices=("hybrid", "lexical", "semantic"), default="hybrid")
@@ -121,6 +138,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     evaluate_qa = subparsers.add_parser("evaluate-qa", help="Evaluate grounded answers")
     evaluate_qa.add_argument("--dataset", type=Path, default=DEFAULT_QA_EVALUATION)
+
+    m9_baseline = subparsers.add_parser(
+        "m9-baseline", help="Evaluate versioned real questions against a corpus snapshot"
+    )
+    m9_baseline.add_argument("--dataset", type=Path, default=DEFAULT_M9_EVALUATION)
+    m9_baseline.add_argument("--taxonomy", type=Path, default=DEFAULT_M9_TAXONOMY)
+    m9_baseline.add_argument("--limit", type=int, default=8)
+    m9_baseline.add_argument("--output", type=Path)
+
+    m9_identities = subparsers.add_parser(
+        "m9-build-identities", help="Apply the versioned narrative identity catalogue"
+    )
+    m9_identities.add_argument("--catalog", type=Path, default=DEFAULT_M9_IDENTITIES)
+    subparsers.add_parser("m9-audit-identities", help="Audit narrative identity integrity")
+    list_identities = subparsers.add_parser(
+        "m9-identities", help="List narrative people and playable forms"
+    )
+    list_identities.add_argument("--include-pending", action="store_true")
 
     build_relation_parser = subparsers.add_parser(
         "build-relations", help="Import curated relations and generate candidates"
@@ -376,6 +411,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 mode=arguments.mode,
             ),
         }
+    elif arguments.command == "intent-search":
+        result = intent_search(database, arguments.query, arguments.limit)
     elif arguments.command == "evaluate":
         result = evaluate_retrieval(database, arguments.dataset, arguments.mode)
     elif arguments.command == "ask":
@@ -389,6 +426,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
     elif arguments.command == "evaluate-qa":
         result = evaluate_answers(database, arguments.dataset)
+    elif arguments.command == "m9-baseline":
+        result = evaluate_real_questions(
+            database, arguments.dataset, arguments.taxonomy, limit=arguments.limit
+        )
+        if arguments.output:
+            write_json_report(arguments.output, result)
+    elif arguments.command == "m9-build-identities":
+        result = replace_identity_catalog(database, arguments.catalog)
+    elif arguments.command == "m9-audit-identities":
+        result = audit_identity_catalog(database)
+    elif arguments.command == "m9-identities":
+        result = {"people": identity_catalog(database, include_pending=arguments.include_pending)}
     elif arguments.command == "build-relations":
         result = build_relations(database, arguments.catalog)
     elif arguments.command == "relations":

@@ -17,9 +17,9 @@ from app.models.database import Database
 SOURCE_WEIGHTS = {
     "wiki_quest": 1.0,
     "wiki_readable": 1.0,
-    "wiki_character": 0.98,
-    "official_article": 0.9,
-    "official_video": 0.85,
+    "wiki_character": 1.0,
+    "official_article": 0.72,
+    "official_video": 0.65,
 }
 
 CONTEXT_BY_SOURCE_KIND = {
@@ -112,11 +112,35 @@ def build_retrieval_index(database: Database, entity_path: Path) -> Dict[str, in
 
 
 def _query_entities(query: str, catalog: Sequence[Mapping[str, Any]]) -> List[Mapping[str, Any]]:
-    normalized = normalize_text(query)
-    matched = []
+    surface_query = unicodedata.normalize("NFKC", query).lower().replace("•", "·")
+    occurrences = []
     for entity in catalog:
-        aliases = [item["text"] for item in entity["aliases"]]
-        if any(normalize_text(alias) in normalized for alias in aliases if alias):
+        for alias in entity["aliases"]:
+            surface = unicodedata.normalize("NFKC", alias["text"]).lower().replace("•", "·")
+            start = 0
+            while surface:
+                offset = surface_query.find(surface, start)
+                if offset < 0:
+                    break
+                occurrences.append((offset, offset + len(surface), entity))
+                start = offset + 1
+    retained = []
+    for start, end, entity in occurrences:
+        if any(
+            int(other[2]["id"]) != int(entity["id"])
+            and other[0] <= start and other[1] >= end
+            and (other[1] - other[0]) > (end - start)
+            for other in occurrences
+        ):
+            continue
+        retained.append((start, end, entity))
+    retained.sort(key=lambda item: (item[0], -(item[1] - item[0]), int(item[2]["id"])))
+    matched = []
+    seen = set()
+    for _, _, entity in retained:
+        entity_id = int(entity["id"])
+        if entity_id not in seen:
+            seen.add(entity_id)
             matched.append(entity)
     return matched
 
@@ -257,7 +281,81 @@ def hybrid_search(
             "source_quality": round(source, 6),
         }
     candidates.sort(key=lambda item: (-item["score"], int(item["chunk_id"])))
-    return candidates[:limit]
+    for original_rank, item in enumerate(candidates, start=1):
+        item["retrieval_diagnostics"] = {"original_rank": original_rank}
+    selected = []
+    source_counts: Counter[tuple[str, str]] = Counter()
+    remaining = list(candidates)
+    while remaining and len(selected) < limit:
+        def adjusted(candidate: Mapping[str, Any]) -> tuple[float, int]:
+            source_key = (str(candidate["provider"]), str(candidate["external_id"]))
+            penalty = 0.015 * source_counts[source_key]
+            return float(candidate["score"]) - penalty, -int(candidate["chunk_id"])
+        best = max(remaining, key=adjusted)
+        remaining.remove(best)
+        source_key = (str(best["provider"]), str(best["external_id"]))
+        penalty = round(0.015 * source_counts[source_key], 6)
+        best["retrieval_diagnostics"].update({
+            "diversified_rank": len(selected) + 1,
+            "source_diversity_penalty": penalty,
+            "wiki_primary": str(best["provider"]) == "mihoyo_wiki",
+        })
+        best["score_components"]["diversity_penalty"] = penalty
+        source_counts[source_key] += 1
+        selected.append(best)
+    return selected
+
+
+def intent_search(
+    database: Database,
+    query: str,
+    limit: int = 10,
+    source_kinds: Optional[Sequence[str]] = None,
+    version: Optional[str] = None,
+    contexts: Optional[Sequence[str]] = None,
+) -> Dict[str, Any]:
+    """Search with an explicit query plan and relation-answer safety gate."""
+    from app.qa.intent import build_query_plan
+
+    plan = build_query_plan(database, query)
+    results = hybrid_search(
+        database, query, limit=limit, source_kinds=source_kinds,
+        version=version, contexts=contexts,
+    )
+    if plan["ambiguity"]:
+        return {"status": "ambiguous", "query_plan": plan, "results": results,
+                "answerable_results": []}
+    if plan["intent"] != "relation":
+        return {"status": "ready", "query_plan": plan, "results": results,
+                "answerable_results": results}
+    endpoints = plan["relation_endpoints"]
+    if len(endpoints) < 2:
+        return {"status": "insufficient_endpoints", "query_plan": plan, "results": results,
+                "answerable_results": []}
+    left, right = int(endpoints[0]["entity_id"]), int(endpoints[1]["entity_id"])
+    with database.connect() as connection:
+        approved_evidence = {
+            row["evidence_id"] for row in connection.execute(
+                """SELECT re.evidence_id FROM relations r
+                   JOIN relation_evidence re ON re.relation_id=r.id
+                   WHERE r.review_status='approved' AND r.is_stale=0
+                     AND ((r.subject_id=? AND r.object_id=?) OR
+                          (r.subject_id=? AND r.object_id=?))""",
+                (left, right, right, left),
+            )
+        }
+    qualified = []
+    for result in results:
+        row_entities = {int(item["id"]) for item in result["entities"]}
+        if {left, right}.issubset(row_entities) or result["evidence_id"] in approved_evidence:
+            qualified.append(result)
+    return {
+        "status": "ready" if qualified else "insufficient_relation_evidence",
+        "query_plan": plan,
+        "results": results,
+        "answerable_results": qualified,
+        "approved_relation_evidence_ids": sorted(approved_evidence),
+    }
 
 
 def evaluate_retrieval(

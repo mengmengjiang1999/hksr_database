@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "taxonomy_version": "m9-question-taxonomy-v1",
+  "intents": {
+    "identity": {"description": "询问某个名字指向谁、是否为同一剧情人物或属于哪个可玩形态。"},
+    "playable_form": {"description": "询问剧情人物有哪些可玩形态，或某形态的正式名称与玩家称呼。"},
+    "relation": {"description": "询问两个明确实体之间的关系。"},
+    "acquisition": {"description": "询问物品、任务、成就或内容如何获得或解锁。"},
+    "temporal": {"description": "询问时间、版本、先后顺序或开放日期。"},
+    "descriptive": {"description": "询问属性、经历、地点、阵营、定位或文本事实。"},
+    "comparison": {"description": "比较两个明确实体、形态、版本或说法。"},
+    "unknown": {"description": "无法可靠归入其他类型的问题。"}
+  },
+  "failure_classes": {
+    "corpus_gap": {"description": "目标官方页面尚未发现、抓取或进入可检索语料。", "owner": "collection"},
+    "parsing_defect": {"description": "目标来源已解析，但人工预期的证据没有进入合格证据块。", "owner": "parsing"},
+    "entity_ambiguity": {"description": "问题中的名字可指向多个实体或形态，且问题没有足够限定。", "owner": "entity_resolution"},
+    "ranking_miss": {"description": "预期证据已在语料中，但未进入指定的检索窗口。", "owner": "retrieval"},
+    "generation_failure": {"description": "证据足够或应拒答，但最终答案状态、内容或支持关系不正确。", "owner": "answering"},
+    "correct_refusal": {"description": "现有官方证据不足，系统明确说明不足且没有编造答案。", "owner": "none"}
+  },
+  "success_class": {"name": "passed", "description": "行为与标注预期一致。"}
+}

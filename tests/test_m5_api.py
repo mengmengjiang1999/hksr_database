@@ -9,7 +9,18 @@ from fastapi.testclient import TestClient
 from app.api.main import create_app
 from app.knowledge import build_relations
 from app.models.database import Database
+from app.qa import GenerationService
 from app.retrieval import build_retrieval_index
+
+
+class ApiFakeAdapter:
+    name = "api-fake"
+
+    def __init__(self, response):
+        self.response = response
+
+    def generate(self, evidence_packet, **kwargs):
+        return self.response
 
 
 class ApiTests(unittest.TestCase):
@@ -100,6 +111,10 @@ class ApiTests(unittest.TestCase):
         self.assertIn("相邻上下文", page)
         self.assertIn("已审核关联", page)
         self.assertIn("@media(max-width:640px)", page)
+        self.assertIn("玩家常用称呼（非官方名称）", page)
+        self.assertIn("use_generation", page)
+        self.assertIn("partial_support", page)
+        self.assertIn("需要明确形态", page)
 
     def test_ask_returns_grounded_claim_and_approved_relations(self) -> None:
         response = self.client.post("/api/ask", json={"question": "小三月保持了什么？"})
@@ -107,9 +122,40 @@ class ApiTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["status"], "explicit")
         self.assertTrue(payload["claims"][0]["citations"])
+        self.assertIn(payload["intent"], {"descriptive", "identity"})
+        self.assertIn("resolved_entities", payload)
+        self.assertIn("ambiguity", payload)
+        self.assertIn("partial_support", payload)
+        self.assertEqual(payload["generation_outcome"], "not_requested")
+        self.assertIn("answer_strategy", payload)
         relations = [relation for group in payload["related_entities"] for relation in group["relations"]]
         self.assertTrue(relations)
         self.assertTrue(all(item["review_status"] == "approved" for item in relations))
+
+    def test_optional_generation_success_and_fallback_are_api_compatible(self) -> None:
+        evidence = Database(self.database_path).retrieval_rows()[0]
+        valid = {"answer": "三月七始终保有独属于自己的纯真。", "claims": [{
+            "text": "三月七始终保有独属于自己的纯真。", "type": "explicit",
+            "supports": [{"evidence_id": evidence["evidence_id"], "span": "独属于自己的纯真"}],
+        }]}
+        self.client.app.state.generation_service = GenerationService(ApiFakeAdapter(valid))
+        generated = self.client.post("/api/ask", json={
+            "question": "小三月保持了什么？", "use_generation": True
+        }).json()
+        self.assertEqual(generated["generation_outcome"], "validated")
+        self.assertEqual(generated["answer_strategy"], "constrained_generation")
+        self.client.app.state.generation_service = GenerationService(ApiFakeAdapter({}))
+        fallback = self.client.post("/api/ask", json={
+            "question": "小三月保持了什么？", "use_generation": True
+        }).json()
+        self.assertEqual(fallback["generation_outcome"], "invalid_schema")
+        self.assertTrue(fallback["generation_fallback"])
+
+    def test_identity_browse_endpoint_and_legacy_request_remain_available(self) -> None:
+        self.assertEqual(self.client.get("/api/identities").status_code, 200)
+        legacy = self.client.post("/api/ask", json={"question": "小三月保持了什么？"})
+        self.assertEqual(legacy.status_code, 200)
+        self.assertTrue(legacy.json()["claims"])
 
     def test_request_validation_and_missing_resources(self) -> None:
         self.assertEqual(self.client.post("/api/ask", json={"question": ""}).status_code, 422)
