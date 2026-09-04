@@ -646,6 +646,144 @@ class M7Collector:
             self.database.finish_collection_run(run_id, report["status"], report)
             raise
 
+    def refresh_wiki(
+        self, raw_root: Path, uploader: RawUploader, *, timeout: int = 30,
+        object_prefix: str = "m7/raw", catalog_key: str = "game_catalog:17",
+        start_new_cycle: bool = False,
+    ) -> Dict[str, Any]:
+        """Recheck one bounded, resumable batch of already parsed Wiki pages."""
+        run_id = self._run_id("wiki-refresh")
+        self.database.start_collection_run(run_id, "wiki_refresh")
+        if start_new_cycle:
+            checkpoint = self.database.start_wiki_refresh(run_id, catalog_key)
+        else:
+            checkpoint = self.database.wiki_refresh_checkpoint(catalog_key)
+            if checkpoint is None:
+                self.database.finish_collection_run(
+                    run_id, "failed", {"error_type": "MissingRefreshCycle"}
+                )
+                raise RuntimeError("start a Wiki refresh cycle before resuming it")
+        controller = RequestController(
+            self.database, run_id, self.policy, sleep=self.sleep,
+            jitter=self.jitter, budget_date=self.budget_date,
+        )
+        report: Dict[str, Any] = {
+            "schema_version": 1, "run_id": run_id, "stage": "wiki_refresh",
+            "started_at": utc_now(), "content_cap": self.policy.fetch_posts,
+            "daily_budget": self.policy.daily_budget or "unlimited",
+            "cycle_id": checkpoint.get("cycle_id"), "attempted": 0,
+            "changed": 0, "unchanged": 0, "skipped": 0, "failed": 0,
+            "remote_retcodes": {},
+        }
+        try:
+            if checkpoint.get("terminal"):
+                report["terminal"] = True
+            else:
+                sources = self.database.wiki_refresh_sources(
+                    catalog_key, self.policy.fetch_posts
+                )
+                if not sources:
+                    checkpoint = self.database.complete_wiki_refresh(catalog_key)
+                for source in sources:
+                    report["attempted"] += 1
+                    source_id = int(source["id"])
+                    try:
+                        response = controller.request(
+                            self.fetcher, source["api_url"],
+                            json.loads(source["headers_json"] or "{}"), timeout,
+                            source_id=source_id,
+                        )
+                        retcode = response.payload.get("retcode")
+                        if retcode != 0:
+                            retcode_key = str(retcode)[:32]
+                            self.database.set_disposition(
+                                source_id, "excluded_unavailable",
+                                "remote_nonzero_retcode_" + retcode_key,
+                                CLASSIFIER_VERSION,
+                            )
+                            self.database.mark_skipped(source_id)
+                            checkpoint = self.database.advance_wiki_refresh(
+                                source_id, changed=True, catalog_key=catalog_key
+                            )
+                            report["skipped"] += 1
+                            report["changed"] += 1
+                            report["remote_retcodes"][retcode_key] = (
+                                report["remote_retcodes"].get(retcode_key, 0) + 1
+                            )
+                            continue
+                        data = response.payload.get("data")
+                        if not isinstance(data, Mapping) or not isinstance(
+                            data.get("content"), Mapping
+                        ):
+                            raise ValueError("Wiki detail response is malformed")
+                        canonical = json.dumps(
+                            response.payload, ensure_ascii=False, sort_keys=True,
+                            separators=(",", ":"),
+                        ).encode("utf-8")
+                        content_hash = content_fingerprint(
+                            source["parser"], response.payload
+                        )
+                        if source["content_sha256"] == content_hash:
+                            self.database.mark_refresh_unchanged(source_id)
+                            checkpoint = self.database.advance_wiki_refresh(
+                                source_id, changed=False, catalog_key=catalog_key
+                            )
+                            report["unchanged"] += 1
+                            continue
+                        digest = hashlib.sha256(canonical).hexdigest()
+                        local_path = (
+                            Path(raw_root) / "mihoyo_wiki" /
+                            (source["external_id"] + ".json")
+                        )
+                        local_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                        temporary = local_path.with_suffix(".json.tmp")
+                        temporary.write_bytes(canonical)
+                        os.chmod(temporary, 0o600)
+                        temporary.replace(local_path)
+                        object_key = "%s/mihoyo_wiki/%s/%s.json" % (
+                            object_prefix.strip("/"), source["external_id"], digest
+                        )
+                        uploaded = uploader.upload(object_key, canonical)
+                        if not uploaded:
+                            raise RuntimeError("OSS persistence returned no result")
+                        self.database.record_raw_manifest(
+                            source_id, digest, len(canonical), local_path, object_key,
+                            uploaded.get("etag"), uploaded.get("version_id"), content_hash,
+                        )
+                        self.database.set_disposition(
+                            source_id, "eligible_evidence",
+                            "official_wiki_catalog_content", CLASSIFIER_VERSION,
+                        )
+                        checkpoint = self.database.advance_wiki_refresh(
+                            source_id, changed=True, catalog_key=catalog_key
+                        )
+                        report["changed"] += 1
+                    except (OSError, RemoteFailure, RuntimeError, ValueError) as error:
+                        self.database.mark_refresh_error(source_id, type(error).__name__)
+                        report["failed"] += 1
+                        raise
+                report["terminal"] = bool(checkpoint.get("terminal"))
+            report.update({
+                "requests": controller.request_count, "retries": controller.retry_count,
+                "wait_seconds": controller.waits,
+                "checkpoint": {
+                    "checked_count": checkpoint.get("checked_count", 0),
+                    "changed_count": checkpoint.get("changed_count", 0),
+                    "terminal": bool(checkpoint.get("terminal")),
+                },
+                "finished_at": utc_now(),
+            })
+            self.database.finish_collection_run(run_id, "completed", report)
+            return sanitize_report(report)
+        except BaseException as error:
+            report.update({
+                "status": "interrupted" if isinstance(error, KeyboardInterrupt) else "failed",
+                "error_type": type(error).__name__, "requests": controller.request_count,
+                "retries": controller.retry_count, "finished_at": utc_now(),
+            })
+            self.database.finish_collection_run(run_id, report["status"], report)
+            raise
+
 
 def review_disposition(
     database: Database, external_id: str, disposition: str, reason: str

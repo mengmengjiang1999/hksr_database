@@ -451,6 +451,48 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(first_stats["chunks"], second_stats["chunks"])
         self.assertEqual(first_index_count, second_index_count)
 
+    def test_parse_limit_is_applied_after_ineligible_sources_are_filtered(self) -> None:
+        for position in range(10):
+            source_id = self.database.upsert_source({
+                "provider": "miyoushe",
+                "external_id": "excluded-%d" % position,
+                "source_kind": "official_article",
+                "parser": "miyoushe_post",
+                "page_url": "https://example.test/article/%d" % position,
+                "api_url": "https://example.test/post/%d" % position,
+                "headers": {},
+                "official_status": "verified",
+            })
+            with self.database.connect() as connection:
+                connection.execute(
+                    "UPDATE sources SET status = 'fetched' WHERE id = ?", (source_id,)
+                )
+            self.database.set_disposition(
+                source_id, "excluded_operational", "test exclusion", "test-v1"
+            )
+
+        wiki_source_id = self.database.upsert_source({
+            "provider": "mihoyo_wiki",
+            "external_id": "wiki-after-exclusions",
+            "source_kind": "wiki_character",
+            "parser": "wiki_content",
+            "page_url": "https://example.test/wiki/after-exclusions",
+            "api_url": "https://example.test/api/after-exclusions",
+            "headers": {},
+            "official_status": "verified",
+        })
+        self._write_raw(wiki_source_id, wiki_payload())
+        self.database.set_disposition(
+            wiki_source_id, "eligible_evidence", "official Wiki", "test-v1"
+        )
+
+        result = parse_sources(self.database, limit=1)
+
+        self.assertEqual(result["attempted"], 1)
+        self.assertEqual(result["parsed"], 1)
+        self.assertEqual(result["skipped_ineligible"], 0)
+        self.assertEqual(self.database.get_source(wiki_source_id)["status"], "parsed")
+
     def test_changed_raw_payload_replaces_existing_chunks(self) -> None:
         discover_manifest(self.database, self._manifest())
         source = self.database.list_sources(limit=1)[0]

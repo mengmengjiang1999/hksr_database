@@ -90,6 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     parse = subparsers.add_parser("parse", help="Parse fetched source responses")
     parse.add_argument("--force", action="store_true")
     parse.add_argument("--limit", type=int)
+    parse.add_argument("--provider")
 
     index = subparsers.add_parser("index", help="Rebuild FTS, entity and semantic indexes")
     index.add_argument("--entities", type=Path, default=DEFAULT_ENTITIES)
@@ -278,6 +279,25 @@ def build_parser() -> argparse.ArgumentParser:
     m7_wiki_fetch.add_argument("--lock", type=Path, default=DEFAULT_M7_LOCK)
     m7_wiki_fetch.add_argument("--output", type=Path)
 
+    m7_wiki_refresh = subparsers.add_parser(
+        "m7-wiki-refresh", help="Recheck one bounded batch of parsed Wiki content"
+    )
+    m7_wiki_refresh.add_argument("--limit", type=int, default=10)
+    m7_wiki_refresh.add_argument("--allow-cap-override", action="store_true")
+    m7_wiki_refresh.add_argument("--daily-budget", type=int, default=60)
+    m7_wiki_refresh.add_argument("--minimum-delay", type=float, default=15)
+    m7_wiki_refresh.add_argument("--maximum-delay", type=float, default=30)
+    m7_wiki_refresh.add_argument("--timeout", type=int, default=30)
+    m7_wiki_refresh.add_argument("--raw-root", type=Path, default=DEFAULT_M7_RAW_ROOT)
+    m7_wiki_refresh.add_argument("--oss-bucket", default=os.environ.get("HKSR_M7_OSS_BUCKET", ""))
+    m7_wiki_refresh.add_argument("--oss-endpoint", default=os.environ.get("HKSR_M7_OSS_ENDPOINT", ""))
+    m7_wiki_refresh.add_argument("--ram-role", default=os.environ.get("HKSR_M7_RAM_ROLE", ""))
+    m7_wiki_refresh.add_argument("--oss-prefix", default="m7/raw")
+    m7_wiki_refresh.add_argument("--catalog-key", default="game_catalog:17")
+    m7_wiki_refresh.add_argument("--start-new-cycle", action="store_true")
+    m7_wiki_refresh.add_argument("--lock", type=Path, default=DEFAULT_M7_LOCK)
+    m7_wiki_refresh.add_argument("--output", type=Path)
+
     m7_review = subparsers.add_parser(
         "m7-review", help="Record a reviewed content disposition without refetching"
     )
@@ -329,7 +349,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             timeout=arguments.timeout,
         )
     elif arguments.command == "parse":
-        result = parse_sources(database, force=arguments.force, limit=arguments.limit)
+        result = parse_sources(
+            database,
+            force=arguments.force,
+            limit=arguments.limit,
+            provider=arguments.provider,
+        )
     elif arguments.command == "index":
         result = {
             "fts_rows": database.rebuild_fts(),
@@ -456,6 +481,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             result = M7Collector(database, policy=policy).fetch_wiki(
                 arguments.raw_root, uploader, timeout=arguments.timeout,
                 object_prefix=arguments.oss_prefix,
+            )
+        if arguments.output:
+            write_m7_report(arguments.output, result)
+    elif arguments.command == "m7-wiki-refresh":
+        if arguments.limit > 10 and not arguments.allow_cap_override:
+            raise ValueError("raising the ten-content cap requires --allow-cap-override")
+        policy = CollectionPolicy(
+            fetch_posts=arguments.limit, daily_budget=arguments.daily_budget,
+            minimum_delay=arguments.minimum_delay, maximum_delay=arguments.maximum_delay,
+        )
+        uploader = OssRamRoleUploader(
+            arguments.oss_bucket, arguments.oss_endpoint, arguments.ram_role
+        )
+        with exclusive_lock(arguments.lock):
+            result = M7Collector(database, policy=policy).refresh_wiki(
+                arguments.raw_root, uploader, timeout=arguments.timeout,
+                object_prefix=arguments.oss_prefix,
+                catalog_key=arguments.catalog_key,
+                start_new_cycle=arguments.start_new_cycle,
             )
         if arguments.output:
             write_m7_report(arguments.output, result)

@@ -191,6 +191,23 @@ SQLITE_MIGRATIONS = (
             ON fetch_attempts(run_id, id);
         """,
     ),
+    (
+        2,
+        """
+        CREATE TABLE IF NOT EXISTS wiki_refresh_checkpoints (
+            catalog_key TEXT PRIMARY KEY,
+            cycle_id TEXT NOT NULL,
+            after_source_id INTEGER NOT NULL DEFAULT 0,
+            max_source_id INTEGER NOT NULL DEFAULT 0,
+            terminal INTEGER NOT NULL DEFAULT 0,
+            checked_count INTEGER NOT NULL DEFAULT 0,
+            changed_count INTEGER NOT NULL DEFAULT 0,
+            started_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT
+        );
+        """,
+    ),
 )
 
 
@@ -553,6 +570,120 @@ class Database:
             "terminal_at": None,
         }
 
+    def wiki_refresh_checkpoint(self, catalog_key: str = "game_catalog:17") -> Optional[Dict[str, Any]]:
+        self.initialize()
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM wiki_refresh_checkpoints WHERE catalog_key = ?",
+                (catalog_key,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def start_wiki_refresh(
+        self, cycle_id: str, catalog_key: str = "game_catalog:17"
+    ) -> Dict[str, Any]:
+        """Start a cycle only when no unfinished Wiki refresh already exists."""
+        self.initialize()
+        now = utc_now()
+        with self.connect() as connection:
+            existing = connection.execute(
+                "SELECT * FROM wiki_refresh_checkpoints WHERE catalog_key = ?",
+                (catalog_key,),
+            ).fetchone()
+            if existing is not None and not bool(existing["terminal"]):
+                return dict(existing)
+            maximum = int(connection.execute(
+                """SELECT COALESCE(MAX(id), 0) FROM sources
+                   WHERE provider = 'mihoyo_wiki' AND official_status = 'verified'
+                     AND status = 'parsed'"""
+            ).fetchone()[0])
+            terminal = int(maximum == 0)
+            connection.execute(
+                """INSERT INTO wiki_refresh_checkpoints(
+                       catalog_key, cycle_id, after_source_id, max_source_id, terminal,
+                       checked_count, changed_count, started_at, updated_at, completed_at
+                   ) VALUES (?, ?, 0, ?, ?, 0, 0, ?, ?, ?)
+                   ON CONFLICT(catalog_key) DO UPDATE SET
+                     cycle_id = excluded.cycle_id,
+                     after_source_id = 0,
+                     max_source_id = excluded.max_source_id,
+                     terminal = excluded.terminal,
+                     checked_count = 0,
+                     changed_count = 0,
+                     started_at = excluded.started_at,
+                     updated_at = excluded.updated_at,
+                     completed_at = excluded.completed_at""",
+                (catalog_key, cycle_id, maximum, terminal, now, now, now if terminal else None),
+            )
+        return self.wiki_refresh_checkpoint(catalog_key) or {}
+
+    def wiki_refresh_sources(
+        self, catalog_key: str = "game_catalog:17", limit: int = 10
+    ) -> List[sqlite3.Row]:
+        checkpoint = self.wiki_refresh_checkpoint(catalog_key)
+        if checkpoint is None or checkpoint["terminal"]:
+            return []
+        with self.connect() as connection:
+            return list(connection.execute(
+                """SELECT * FROM sources
+                   WHERE provider = 'mihoyo_wiki' AND official_status = 'verified'
+                     AND status = 'parsed' AND id > ? AND id <= ?
+                   ORDER BY id LIMIT ?""",
+                (checkpoint["after_source_id"], checkpoint["max_source_id"], limit),
+            ).fetchall())
+
+    def advance_wiki_refresh(
+        self, source_id: int, *, changed: bool, catalog_key: str = "game_catalog:17"
+    ) -> Dict[str, Any]:
+        now = utc_now()
+        with self.connect() as connection:
+            checkpoint = connection.execute(
+                "SELECT * FROM wiki_refresh_checkpoints WHERE catalog_key = ?",
+                (catalog_key,),
+            ).fetchone()
+            if checkpoint is None or checkpoint["terminal"]:
+                raise RuntimeError("Wiki refresh cycle is not active")
+            if source_id <= int(checkpoint["after_source_id"]):
+                raise ValueError("Wiki refresh source order did not advance")
+            terminal = int(source_id >= int(checkpoint["max_source_id"]))
+            connection.execute(
+                """UPDATE wiki_refresh_checkpoints SET
+                     after_source_id = ?, terminal = ?,
+                     checked_count = checked_count + 1,
+                     changed_count = changed_count + ?, updated_at = ?,
+                     completed_at = CASE WHEN ? = 1 THEN ? ELSE NULL END
+                   WHERE catalog_key = ?""",
+                (source_id, terminal, int(changed), now, terminal, now, catalog_key),
+            )
+        return self.wiki_refresh_checkpoint(catalog_key) or {}
+
+    def complete_wiki_refresh(self, catalog_key: str = "game_catalog:17") -> Dict[str, Any]:
+        now = utc_now()
+        with self.connect() as connection:
+            connection.execute(
+                """UPDATE wiki_refresh_checkpoints SET
+                     after_source_id = max_source_id, terminal = 1,
+                     updated_at = ?, completed_at = COALESCE(completed_at, ?)
+                   WHERE catalog_key = ? AND terminal = 0""",
+                (now, now, catalog_key),
+            )
+        return self.wiki_refresh_checkpoint(catalog_key) or {}
+
+    def mark_refresh_unchanged(self, source_id: int) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                "UPDATE sources SET fetched_at = ?, last_error = NULL WHERE id = ?",
+                (utc_now(), source_id),
+            )
+
+    def mark_refresh_error(self, source_id: int, message: str) -> None:
+        """Retain last-known-good parsed evidence after a transient refresh failure."""
+        with self.connect() as connection:
+            connection.execute(
+                "UPDATE sources SET last_error = ? WHERE id = ?",
+                (message[:2000], source_id),
+            )
+
     def start_collection_run(self, run_id: str, stage: str) -> None:
         self.initialize()
         with self.connect() as connection:
@@ -785,6 +916,30 @@ class Database:
             query += " WHERE status IN (%s)" % placeholders
             parameters.extend(statuses)
         query += " ORDER BY id"
+        if limit is not None:
+            query += " LIMIT ?"
+            parameters.append(limit)
+        with self.connect() as connection:
+            return list(connection.execute(query, parameters).fetchall())
+
+    def list_parseable_sources(
+        self,
+        statuses: Sequence[str],
+        limit: Optional[int] = None,
+        provider: Optional[str] = None,
+    ) -> List[sqlite3.Row]:
+        """Return evidence-eligible sources, applying filters before the batch limit."""
+        self.initialize()
+        placeholders = ",".join("?" for _ in statuses)
+        query = """SELECT s.* FROM sources s
+                   LEFT JOIN source_dispositions d ON d.source_id = s.id
+                   WHERE s.status IN (%s)
+                     AND (d.disposition IS NULL OR d.disposition = 'eligible_evidence')""" % placeholders
+        parameters: List[Any] = list(statuses)
+        if provider is not None:
+            query += " AND s.provider = ?"
+            parameters.append(provider)
+        query += " ORDER BY s.id"
         if limit is not None:
             query += " LIMIT ?"
             parameters.append(limit)

@@ -9,6 +9,7 @@ project_dir=${HKSR_PROJECT_DIR:-/home/ecs-user/hksr_database}
 database_path=${HKSR_DATABASE_PATH:-data/database/hksr.sqlite3}
 report_dir=${HKSR_M7_REPORT_DIR:-data/m7/runs}
 daily_budget=${HKSR_M7_DAILY_BUDGET:-60}
+rds_file=${XDG_CONFIG_HOME:-${HOME}/.config}/hksr/rds.dsn
 
 case "$daily_budget" in
   ''|*[!0-9]*)
@@ -19,6 +20,24 @@ esac
 
 cd "$project_dir"
 mkdir -p "$report_dir"
+if [[ ! -s "$rds_file" ]]; then
+  echo "Missing private RDS configuration" >&2
+  exit 2
+fi
+IFS= read -r HKSR_POSTGRES_DSN < "$rds_file"
+export HKSR_POSTGRES_DSN
+.venv/bin/python -m app.cli cloud-migrate --allow-mutation \
+  > "$report_dir/wiki-rds-migrations.json"
+
+sync_rds() {
+  local label=$1
+  local stamp=$2
+  .venv/bin/python -m app.cli --database "$database_path" initialize \
+    > "$report_dir/wiki-index-${label}-${stamp}.json"
+  .venv/bin/python -m app.cli --database "$database_path" cloud-import-sqlite \
+    --batch-id "m7-real-wiki-${stamp}-${label}" --allow-mutation \
+    --output "$report_dir/wiki-rds-${label}-${stamp}.json"
+}
 
 # Keep the two upstream collectors sequential. Wiki waits for the account inventory service.
 while systemctl --user is-active --quiet hksr-m7b-overnight.service; do
@@ -67,7 +86,8 @@ assert p.get("persisted", 0) + p.get("skipped", 0) == p.get("attempted")
 assert p.get("retries") == 0
 ' "$fetch_report"
   parse_report="$report_dir/wiki-parse-${cycle}-${stamp}.json"
-  .venv/bin/python -m app.cli --database "$database_path" parse --limit "$limit" \
+  .venv/bin/python -m app.cli --database "$database_path" parse \
+    --provider mihoyo_wiki --limit "$limit" \
     > "$parse_report"
   .venv/bin/python -c '
 import json, sys
@@ -76,9 +96,13 @@ parsed=json.load(open(sys.argv[2]))
 assert parsed.get("failed") == 0
 assert parsed.get("attempted") == fetch.get("persisted")
 ' "$fetch_report" "$parse_report"
+  if test $((cycle % 20)) -eq 0; then
+    sync_rds "$cycle" "$stamp"
+  fi
 done
 
-.venv/bin/python -m app.cli --database "$database_path" initialize \
-  > "$report_dir/wiki-final-index.json"
+final_stamp=$(date -u +%Y%m%d%H%M%S)
+sync_rds "final" "$final_stamp"
 .venv/bin/python -m app.cli --database "$database_path" m7-report \
   --output "$report_dir/wiki-overnight-final.json"
+unset HKSR_POSTGRES_DSN

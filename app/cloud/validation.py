@@ -443,6 +443,13 @@ def import_official_sqlite(
         if existing_batch and existing_batch[0] != snapshot["source_fingerprint"]:
             raise ValueError("batch_id already refers to a different SQLite snapshot")
 
+        # These link tables are rebuilt from the authoritative SQLite snapshot.
+        # Clearing them inside the transaction prevents removed aliases or links
+        # from surviving an otherwise idempotent incremental reconciliation.
+        connection.execute("DELETE FROM hksr.relation_evidence")
+        connection.execute("DELETE FROM hksr.entity_chunks")
+        connection.execute("DELETE FROM hksr.aliases")
+
         for row in tables["sources"]:
             metadata = json.dumps({
                 "parser": row.get("parser", ""),
@@ -628,6 +635,30 @@ def import_official_sqlite(
                 "entity_chunks", "relations", "relation_evidence", "official_evidence",
             )
         }
+        expected_wiki_by_kind: Dict[str, int] = {}
+        for row in tables["sources"]:
+            if row["provider"] == "mihoyo_wiki":
+                kind = str(row["source_kind"])
+                expected_wiki_by_kind[kind] = expected_wiki_by_kind.get(kind, 0) + 1
+
+        def prune_missing(table: str, identifiers: Iterable[int]) -> None:
+            retained = list(identifiers)
+            if retained:
+                connection.execute(
+                    "DELETE FROM hksr.%s WHERE NOT (id = ANY(%%s))" % table,
+                    (retained,),
+                )
+            else:
+                connection.execute("DELETE FROM hksr.%s" % table)
+
+        # Remove superseded rows only after their replacements and evidence links
+        # are present. Any failure rolls the whole reconciliation transaction back.
+        prune_missing("relations", relation_ids.values())
+        prune_missing("chunks", chunk_ids.values())
+        prune_missing("documents", document_ids.values())
+        prune_missing("entities", entity_ids.values())
+        prune_missing("sources", source_ids.values())
+
         observed = {
             table: int(connection.execute(
                 "SELECT count(*) FROM hksr.%s" % table
@@ -639,7 +670,23 @@ def import_official_sqlite(
         }
         counts_match = expected == observed
         if not counts_match:
-            raise ValueError("PostgreSQL counts do not match the SQLite snapshot")
+            raise ValueError("PostgreSQL counts do not match the pruned SQLite snapshot")
+        observed_wiki_by_kind = {
+            str(kind): int(count) for kind, count in connection.execute(
+                """SELECT source_kind, count(*) FROM hksr.sources
+                   WHERE provider = 'mihoyo_wiki'
+                   GROUP BY source_kind ORDER BY source_kind"""
+            ).fetchall()
+        }
+        wiki_catalog = {
+            "expected_unique_content_ids": sum(expected_wiki_by_kind.values()),
+            "observed_unique_content_ids": sum(observed_wiki_by_kind.values()),
+            "expected_by_source_kind": dict(sorted(expected_wiki_by_kind.items())),
+            "observed_by_source_kind": dict(sorted(observed_wiki_by_kind.items())),
+            "counts_match": expected_wiki_by_kind == observed_wiki_by_kind,
+        }
+        if not wiki_catalog["counts_match"]:
+            raise ValueError("PostgreSQL Wiki category counts do not match SQLite")
         connection.execute(
             """INSERT INTO hksr.import_batches
                    (batch_id, source_fingerprint, counts)
@@ -660,6 +707,7 @@ def import_official_sqlite(
         "local_sparse_vectors_deferred": int(snapshot["counts"]["chunk_vectors"]),
         "synthetic_rows_imported": 0,
         "repeated_batch": bool(existing_batch),
+        "wiki_catalog": wiki_catalog,
         "duration_seconds": round(time.perf_counter() - started, 3),
     }
 

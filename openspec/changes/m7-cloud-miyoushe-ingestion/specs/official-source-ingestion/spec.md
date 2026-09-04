@@ -31,6 +31,10 @@ The system MUST discover every item under the official Wiki `游戏图鉴` root,
 - **WHEN** a later ECS discovery receives existing and newly added official content IDs
 - **THEN** existing fetched or parsed state remains intact and only new IDs expand the access list
 
+#### Scenario: Existing Wiki content is rechecked after a game update
+- **WHEN** a controlled refresh fetches an already parsed content ID
+- **THEN** the system advances a resumable refresh checkpoint, leaves matching content hashes parsed without another OSS upload, and sends only changed content through private persistence, parsing, and RDS reconciliation
+
 #### Scenario: Editorial guides are outside the game catalog
 - **WHEN** a Wiki channel is a separate editorial guide channel rather than a child of the `游戏图鉴` root
 - **THEN** it is not registered by the game-catalog discovery command

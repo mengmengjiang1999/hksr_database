@@ -48,6 +48,8 @@ Alternative: one command walks all pages and downloads every body. Rejected beca
 
 The official Wiki directory endpoint for root channel `17` is the source of truth for the access list. One catalog discovery request registers every child-channel item by stable `content_id`, builds deterministic detail and page URLs, preserves a primary category for parsing and retrieval, and deduplicates IDs that appear in multiple channels. The `成就攻略` catalog is retained as achievement data by explicit user decision, while separate editorial guide channels outside the game-catalog root remain excluded. Re-running discovery updates metadata and adds new IDs without resetting already fetched or parsed rows.
 
+Because the directory does not expose a reliable content revision for every item, a separate controlled refresh cycle snapshots the maximum parsed source ID and rechecks existing details in bounded, resumable batches. It compares normalized content fingerprints before persistence: unchanged responses only update the check time, while changed responses receive a new content-addressed OSS object and return to the parse/RDS path. A transient refresh failure retains the last-known-good parsed evidence and does not advance the refresh checkpoint.
+
 The 2026-09-04 observation contains 5,319 channel entries and 5,292 unique content IDs. This is a point-in-time measurement rather than a completion constant; later incremental runs use the directory response rather than this recorded number.
 
 Alternative: commit a static list of 5,292 URLs. Rejected because it becomes stale after game updates and loses category and deduplication evidence.

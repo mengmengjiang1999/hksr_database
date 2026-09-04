@@ -122,10 +122,11 @@ class M7TestCase(unittest.TestCase):
             tables = {row[0] for row in connection.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )}
-        self.assertEqual([row[0] for row in versions], [1])
+        self.assertEqual([row[0] for row in versions], [1, 2])
         self.assertTrue({
             "collection_runs", "account_checkpoints", "daily_request_budgets",
             "source_dispositions", "fetch_attempts", "raw_object_manifests",
+            "wiki_refresh_checkpoints",
         }.issubset(tables))
 
     def test_cursor_resumes_across_runs_and_terminal_is_upstream_driven(self):
@@ -170,12 +171,19 @@ class M7TestCase(unittest.TestCase):
         wiki_fetch = parser.parse_args([
             "m7-wiki-fetch", "--oss-bucket", "b", "--oss-endpoint", "e"
         ])
+        parse = parser.parse_args(["parse", "--provider", "mihoyo_wiki"])
+        wiki_refresh = parser.parse_args([
+            "m7-wiki-refresh", "--oss-bucket", "b", "--oss-endpoint", "e"
+        ])
         self.assertEqual(discover.pages, 2)
         self.assertEqual(fetch.limit, 10)
         self.assertEqual(wiki_fetch.limit, 10)
+        self.assertEqual(parse.provider, "mihoyo_wiki")
+        self.assertEqual(wiki_refresh.limit, 10)
         self.assertEqual(discover.daily_budget, 60)
         self.assertEqual(fetch.daily_budget, 60)
         self.assertEqual(wiki_fetch.daily_budget, 60)
+        self.assertEqual(wiki_refresh.daily_budget, 60)
         approved = parser.parse_args([
             "m7-fetch", "--oss-bucket", "b", "--oss-endpoint", "e",
             "--daily-budget", "300",
@@ -339,6 +347,73 @@ class M7TestCase(unittest.TestCase):
             "excluded_unavailable",
         )
         self.assertEqual(uploader.objects, {})
+
+    def test_wiki_refresh_resumes_and_only_persists_changed_content(self):
+        source_ids = []
+        for external_id in ("100", "101"):
+            source_ids.append(self.database.upsert_source({
+                "provider": "mihoyo_wiki", "external_id": external_id,
+                "source_kind": "wiki_character", "parser": "wiki_content",
+                "page_url": "https://example.test/wiki/" + external_id,
+                "api_url": "https://example.test/api/" + external_id,
+                "headers": {}, "expected_title": "角色" + external_id,
+                "official_status": "verified",
+            }))
+        self.collector(
+            [wiki_body("100", "角色甲"), wiki_body("101", "角色乙")],
+            fetch_posts=10,
+        ).fetch_wiki(self.root / "spool", MemoryUploader())
+        with self.database.connect() as connection:
+            connection.execute("UPDATE sources SET status = 'parsed'")
+
+        unchanged_uploader = MemoryUploader()
+        first = self.collector(
+            [wiki_body("100", "角色甲")], fetch_posts=1
+        ).refresh_wiki(
+            self.root / "spool", unchanged_uploader, start_new_cycle=True
+        )
+        self.assertEqual(first["unchanged"], 1)
+        self.assertEqual(first["changed"], 0)
+        self.assertFalse(first["terminal"])
+        self.assertEqual(unchanged_uploader.objects, {})
+        self.assertEqual(self.database.get_source(source_ids[0])["status"], "parsed")
+
+        changed_uploader = MemoryUploader()
+        second = self.collector(
+            [wiki_body("101", "角色乙·新版")], fetch_posts=1
+        ).refresh_wiki(self.root / "spool", changed_uploader)
+        checkpoint = self.database.wiki_refresh_checkpoint()
+        self.assertEqual(second["changed"], 1)
+        self.assertTrue(second["terminal"])
+        self.assertTrue(checkpoint["terminal"])
+        self.assertEqual(checkpoint["checked_count"], 2)
+        self.assertEqual(checkpoint["changed_count"], 1)
+        self.assertEqual(self.database.get_source(source_ids[1])["status"], "fetched")
+        self.assertEqual(len(changed_uploader.objects), 1)
+
+    def test_wiki_refresh_failure_keeps_last_known_good_evidence(self):
+        source_id = self.database.upsert_source({
+            "provider": "mihoyo_wiki", "external_id": "100",
+            "source_kind": "wiki_character", "parser": "wiki_content",
+            "page_url": "https://example.test/wiki/100",
+            "api_url": "https://example.test/api/100", "headers": {},
+            "expected_title": "角色甲", "official_status": "verified",
+        })
+        self.collector([wiki_body()], fetch_posts=1).fetch_wiki(
+            self.root / "spool", MemoryUploader()
+        )
+        with self.database.connect() as connection:
+            connection.execute("UPDATE sources SET status = 'parsed' WHERE id = ?", (source_id,))
+        with self.assertRaisesRegex(RuntimeError, "circuit breaker"):
+            self.collector(
+                [RemoteFailure("temporary")] * 3, fetch_posts=1
+            ).refresh_wiki(
+                self.root / "spool", MemoryUploader(), start_new_cycle=True
+            )
+        source = self.database.get_source(source_id)
+        self.assertEqual(source["status"], "parsed")
+        self.assertEqual(source["last_error"], "RuntimeError")
+        self.assertEqual(self.database.wiki_refresh_checkpoint()["checked_count"], 0)
 
     def test_oss_uploader_refuses_static_access_keys(self):
         previous = os.environ.get("OSS_ACCESS_KEY_ID")

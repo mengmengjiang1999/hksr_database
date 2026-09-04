@@ -109,10 +109,18 @@ Wiki 访问清单从官方 `游戏图鉴` 根频道动态生成，不提交静�
 Wiki 正文使用独立的 `m7-wiki-fetch` 批次命令，继续沿用每批最多 10 页、15–30 秒
 请求间隔、共享请求计数、重试、熔断、私有本地 spool 和 RAM 角色 OSS 持久化。
 `deploy/run-m7-wiki-overnight.sh` 会先等待官方账号初始清单正常到达 terminal，再刷新
-一次 Wiki 目录并串行抓取，不允许两个来源并发请求。
+一次 Wiki 目录并串行抓取，不允许两个来源并发请求。脚本每 20 个抓取批次以及最终
+完成时各执行一次带审计的 RDS 对账，并核对 Wiki 唯一 ID 与分类数量。
 正文接口在 HTTP 成功时若返回非零业务 `retcode`，来源会记为
 `excluded_unavailable` / `skipped` 并直接跳过；报告只统计返回码，不保存错误正文，
 后续批次不会反复请求该条目。网络、OSS 或熔断错误仍按真实失败停止批次。
+
+版本更新后先运行 `m7-wiki-discover` 加入新 ID；新页面队列处理完成后，用
+`m7-wiki-refresh --start-new-cycle` 开始一次已有页面复查。后续批次不再传
+`--start-new-cycle`，会从 SQLite 刷新游标续跑。规范化正文哈希未变化的页面不会
+重复上传 OSS 或重新解析；发生变化的页面才进入新原始版本、解析与 RDS 对账。
+禁用状态的 `hksr-m7.timer` 所调用增量脚本已经包含上述目录发现、新页面抓取和一批
+已有页面复查，但仍须等 M7C 验收及用户单独批准后才能启用。
 
 若工作站创建的 SQLite FTS5 索引使用了 ECS SQLite 不支持的 `trigram` tokenizer，
 应用初始化会只重建派生全文索引为 `unicode61`，不会删除来源、正文、游标或 OSS 清单。

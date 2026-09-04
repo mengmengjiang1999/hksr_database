@@ -1,5 +1,5 @@
 [Unit]
-Description=HKSR bounded Miyoushe incremental collection
+Description=HKSR bounded official-account and Wiki incremental collection
 After=network-online.target
 Wants=network-online.target
 

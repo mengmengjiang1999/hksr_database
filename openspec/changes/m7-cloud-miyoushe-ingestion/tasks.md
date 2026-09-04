@@ -40,7 +40,7 @@
 
 - [ ] 6.1 Rebuild ECS-local indexes, sample lore-related retrieval traceability, and compare eligible SQLite staging counts with the final RDS audit.
 - [ ] 6.2 Run three manually initiated no-change incremental checks and verify stable cursors, hashes, evidence IDs, row counts, and request-budget behavior.
-- [ ] 6.3 Add systemd oneshot and timer units with locking and journal logging, install them on ECS, and confirm the recurring timer remains disabled.
+- [x] 6.3 Add systemd oneshot and timer units with locking and journal logging, install them on ECS, and confirm the recurring timer remains disabled.
 - [ ] 6.4 Produce sanitized JSON and Markdown completion reports covering inventory, dispositions, pacing, retries, OSS persistence, RDS batches, exclusions, and unresolved items.
 - [ ] 6.5 Run the full local offline test suite, full ECS test suite, strict OpenSpec validation, and secret scan; enable recurring collection only after separate explicit user approval.
 
@@ -50,4 +50,4 @@
 - [x] 7.2 Add deterministic tests for catalog coverage, achievement inclusion, guide exclusion, duplicate IDs, task categories, malformed responses, and idempotent rediscovery.
 - [x] 7.3 Deploy the catalog discovery command to ECS, register the current unique Wiki access list, and verify the observed and deduplicated counts without interrupting the official-account collector.
 - [ ] 7.4 Fetch and privately persist every queued Wiki detail on ECS with bounded pacing, restartable state, parsing, and sanitized progress reports.
-- [ ] 7.5 Reconcile parsed Wiki evidence into RDS, verify category and unique-ID totals, and add the Wiki catalog to controlled incremental synchronization.
+- [x] 7.5 Reconcile parsed Wiki evidence into RDS, verify category and unique-ID totals, and add the Wiki catalog to controlled incremental synchronization.

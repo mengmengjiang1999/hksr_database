@@ -166,11 +166,13 @@ class MigrationAndFixtureTests(unittest.TestCase):
         files = migration_files()
         self.assertEqual(
             [path.name for path in files],
-            ["001_core.sql", "002_validation.sql", "003_real_evidence_import.sql"],
+            ["001_core.sql", "002_validation.sql", "003_real_evidence_import.sql",
+             "004_m7_import_batches.sql"],
         )
         self.assertEqual(
             [path.name for path in migration_plan(["001_core.sql"])],
-            ["002_validation.sql", "003_real_evidence_import.sql"],
+            ["002_validation.sql", "003_real_evidence_import.sql",
+             "004_m7_import_batches.sql"],
         )
         combined = "\n".join(path.read_text(encoding="utf-8") for path in files).lower()
         self.assertIn("create table if not exists", combined)
@@ -201,6 +203,10 @@ class MigrationAndFixtureTests(unittest.TestCase):
         self.assertEqual(
             validate_real_batch_id("m6b-real-initial-20260903"),
             "m6b-real-initial-20260903",
+        )
+        self.assertEqual(
+            validate_real_batch_id("m7-real-wiki-20260904"),
+            "m7-real-wiki-20260904",
         )
         for invalid in ("m6b-test", "m6b-real-x", "M6B-real-import", "m6b-real-../all"):
             with self.assertRaises(ValueError):
