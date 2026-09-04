@@ -69,6 +69,10 @@ The workflow MUST reconcile only eligible parsed staging content into RDS under 
 - **WHEN** an operator reruns an unchanged M7 batch
 - **THEN** RDS row counts and stable evidence identities remain unchanged and the report marks the batch as repeated
 
+#### Scenario: Periodic RDS reconciliation is temporarily unavailable
+- **WHEN** a Wiki collection loop exhausts bounded retries for an intermediate RDS reconciliation while queued pages remain
+- **THEN** it records a sanitized failure, continues durable local collection and OSS persistence, and still requires a successful final reconciliation before reporting completion
+
 ### Requirement: Disabled-by-default scheduling
 The deployment SHALL provide a locked, observable systemd collection timer but MUST leave it disabled until the initial terminal inventory, three clean manual batches, and explicit user approval are recorded.
 

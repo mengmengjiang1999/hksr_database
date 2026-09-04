@@ -9,11 +9,29 @@ project_dir=${HKSR_PROJECT_DIR:-/home/ecs-user/hksr_database}
 database_path=${HKSR_DATABASE_PATH:-data/database/hksr.sqlite3}
 report_dir=${HKSR_M7_REPORT_DIR:-data/m7/runs}
 daily_budget=${HKSR_M7_DAILY_BUDGET:-60}
+rds_sync_attempts=${HKSR_M7_RDS_SYNC_ATTEMPTS:-3}
+rds_sync_retry_delay=${HKSR_M7_RDS_SYNC_RETRY_DELAY:-15}
 rds_file=${XDG_CONFIG_HOME:-${HOME}/.config}/hksr/rds.dsn
+
+. "$(dirname "$0")/m7-rds-sync.sh"
 
 case "$daily_budget" in
   ''|*[!0-9]*)
     echo "HKSR_M7_DAILY_BUDGET must be a non-negative integer (0 means unlimited)" >&2
+    exit 2
+    ;;
+esac
+
+case "$rds_sync_attempts" in
+  ''|*[!0-9]*|0)
+    echo "HKSR_M7_RDS_SYNC_ATTEMPTS must be a positive integer" >&2
+    exit 2
+    ;;
+esac
+
+case "$rds_sync_retry_delay" in
+  ''|*[!0-9]*)
+    echo "HKSR_M7_RDS_SYNC_RETRY_DELAY must be a non-negative integer" >&2
     exit 2
     ;;
 esac
@@ -32,11 +50,18 @@ export HKSR_POSTGRES_DSN
 sync_rds() {
   local label=$1
   local stamp=$2
-  .venv/bin/python -m app.cli --database "$database_path" initialize \
-    > "$report_dir/wiki-index-${label}-${stamp}.json"
-  .venv/bin/python -m app.cli --database "$database_path" cloud-import-sqlite \
-    --batch-id "m7-real-wiki-${stamp}-${label}" --allow-mutation \
-    --output "$report_dir/wiki-rds-${label}-${stamp}.json"
+  local status=0
+  if .venv/bin/python -m app.cli --database "$database_path" initialize \
+    > "$report_dir/wiki-index-${label}-${stamp}.json"; then
+    :
+  else
+    status=$?
+    return "$status"
+  fi
+  retry_with_backoff "$rds_sync_attempts" "$rds_sync_retry_delay" \
+    .venv/bin/python -m app.cli --database "$database_path" cloud-import-sqlite \
+      --batch-id "m7-real-wiki-${stamp}-${label}" --allow-mutation \
+      --output "$report_dir/wiki-rds-${label}-${stamp}.json"
 }
 
 # Keep the two upstream collectors sequential. Wiki waits for the account inventory service.
@@ -97,7 +122,7 @@ assert parsed.get("failed") == 0
 assert parsed.get("attempted") == fetch.get("persisted")
 ' "$fetch_report" "$parse_report"
   if test $((cycle % 20)) -eq 0; then
-    sync_rds "$cycle" "$stamp"
+    run_nonfatal "periodic RDS sync" sync_rds "$cycle" "$stamp"
   fi
 done
 

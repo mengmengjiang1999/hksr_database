@@ -110,7 +110,11 @@ Wiki 正文使用独立的 `m7-wiki-fetch` 批次命令，继续沿用每批最�
 请求间隔、共享请求计数、重试、熔断、私有本地 spool 和 RAM 角色 OSS 持久化。
 `deploy/run-m7-wiki-overnight.sh` 会先等待官方账号初始清单正常到达 terminal，再刷新
 一次 Wiki 目录并串行抓取，不允许两个来源并发请求。脚本每 20 个抓取批次以及最终
-完成时各执行一次带审计的 RDS 对账，并核对 Wiki 唯一 ID 与分类数量。
+完成时各执行一次带审计的 RDS 对账，并核对 Wiki 唯一 ID 与分类数量。周期性 RDS
+对账会进行三次有限重试；若数据库暂时不可用，脚本记录不含连接信息的告警并继续
+本地抓取、OSS 持久化和解析。最终 RDS 对账仍为严格完成门槛，不会在同步失败时生成
+Wiki 最终完成报告。重试次数和基础等待秒数可通过 ECS 私有环境中的
+`HKSR_M7_RDS_SYNC_ATTEMPTS` 与 `HKSR_M7_RDS_SYNC_RETRY_DELAY` 调整。
 正文接口在 HTTP 成功时若返回非零业务 `retcode`，来源会记为
 `excluded_unavailable` / `skipped` 并直接跳过；报告只统计返回码，不保存错误正文，
 后续批次不会反复请求该条目。网络、OSS 或熔断错误仍按真实失败停止批次。
