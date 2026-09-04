@@ -57,6 +57,22 @@ def body(post_id="1", *, content="官方剧情正文", title="剧情说明", ver
     }
 
 
+def wiki_body(content_id="100", title="角色甲"):
+    return {
+        "retcode": 0,
+        "data": {
+            "channel_list": [{"id": 18, "name": "角色"}],
+            "content": {
+                "id": int(content_id),
+                "title": title,
+                "summary": "游戏内资料",
+                "version": 1,
+                "contents": [],
+            },
+        },
+    }
+
+
 class MemoryUploader:
     def __init__(self, fail=False):
         self.fail = fail
@@ -151,10 +167,15 @@ class M7TestCase(unittest.TestCase):
         parser = build_parser()
         discover = parser.parse_args(["m7-discover", "--uid", "1"])
         fetch = parser.parse_args(["m7-fetch", "--oss-bucket", "b", "--oss-endpoint", "e"])
+        wiki_fetch = parser.parse_args([
+            "m7-wiki-fetch", "--oss-bucket", "b", "--oss-endpoint", "e"
+        ])
         self.assertEqual(discover.pages, 2)
         self.assertEqual(fetch.limit, 10)
+        self.assertEqual(wiki_fetch.limit, 10)
         self.assertEqual(discover.daily_budget, 60)
         self.assertEqual(fetch.daily_budget, 60)
+        self.assertEqual(wiki_fetch.daily_budget, 60)
         approved = parser.parse_args([
             "m7-fetch", "--oss-bucket", "b", "--oss-endpoint", "e",
             "--daily-budget", "300",
@@ -261,6 +282,63 @@ class M7TestCase(unittest.TestCase):
 
         repeated = self.collector([]).fetch(self.root / "spool", uploader)
         self.assertEqual(repeated["attempted"], 0)
+
+    def test_wiki_fetch_is_paced_persisted_and_marked_eligible(self):
+        source_id = self.database.upsert_source(
+            {
+                "provider": "mihoyo_wiki",
+                "external_id": "100",
+                "source_kind": "wiki_character",
+                "parser": "wiki_content",
+                "page_url": "https://bbs.mihoyo.com/sr/wiki/content/100/detail",
+                "api_url": "https://example.test/wiki/100",
+                "headers": {},
+                "expected_title": "角色甲",
+                "official_status": "verified",
+            }
+        )
+        uploader = MemoryUploader()
+        report = self.collector([wiki_body()], fetch_posts=10).fetch_wiki(
+            self.root / "spool", uploader
+        )
+
+        source = self.database.get_source(source_id)
+        disposition = self.database.source_disposition(source_id)
+        self.assertEqual(report["attempted"], 1)
+        self.assertEqual(report["persisted"], 1)
+        self.assertEqual(report["failed"], 0)
+        self.assertEqual(source["status"], "fetched")
+        self.assertEqual(disposition["disposition"], "eligible_evidence")
+        key = next(iter(uploader.objects))
+        self.assertRegex(key, r"^m7/raw/mihoyo_wiki/100/[0-9a-f]{64}\.json$")
+        self.assertEqual(os.stat(source["raw_path"]).st_mode & 0o777, 0o600)
+
+    def test_wiki_nonzero_retcode_is_permanently_skipped(self):
+        source_id = self.database.upsert_source(
+            {
+                "provider": "mihoyo_wiki",
+                "external_id": "101",
+                "source_kind": "wiki_readable",
+                "parser": "wiki_content",
+                "page_url": "https://bbs.mihoyo.com/sr/wiki/content/101/detail",
+                "api_url": "https://example.test/wiki/101",
+                "headers": {},
+                "expected_title": "阅读物",
+                "official_status": "verified",
+            }
+        )
+        uploader = MemoryUploader()
+        report = self.collector([{"retcode": -1}], fetch_posts=10).fetch_wiki(
+            self.root / "spool", uploader
+        )
+
+        self.assertEqual(report["skipped"], 1)
+        self.assertEqual(self.database.get_source(source_id)["status"], "skipped")
+        self.assertEqual(
+            self.database.source_disposition(source_id)["disposition"],
+            "excluded_unavailable",
+        )
+        self.assertEqual(uploader.objects, {})
 
     def test_oss_uploader_refuses_static_access_keys(self):
         previous = os.environ.get("OSS_ACCESS_KEY_ID")

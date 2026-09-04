@@ -489,45 +489,53 @@ class Database:
         return json.loads(row["value_json"]) if row else {}
 
     def upsert_source(self, source: Mapping[str, Any]) -> int:
+        return self.upsert_sources([source])[0]
+
+    def upsert_sources(self, sources: Sequence[Mapping[str, Any]]) -> List[int]:
+        """Upsert a source batch in one transaction without resetting fetch state."""
         self.initialize()
         now = utc_now()
+        source_ids: List[int] = []
         with self.connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO sources (
-                    provider, external_id, source_kind, parser, page_url, api_url,
-                    headers_json, expected_title, discovered_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(provider, external_id) DO UPDATE SET
-                    source_kind = excluded.source_kind,
-                    parser = excluded.parser,
-                    page_url = excluded.page_url,
-                    api_url = excluded.api_url,
-                    headers_json = excluded.headers_json,
-                    expected_title = excluded.expected_title
-                """,
-                (
-                    source["provider"],
-                    source["external_id"],
-                    source["source_kind"],
-                    source["parser"],
-                    source["page_url"],
-                    source["api_url"],
-                    json.dumps(source.get("headers") or {}, ensure_ascii=False),
-                    source.get("expected_title", ""),
-                    now,
-                ),
-            )
-            row = connection.execute(
-                "SELECT id FROM sources WHERE provider = ? AND external_id = ?",
-                (source["provider"], source["external_id"]),
-            ).fetchone()
-            if source.get("official_status"):
+            for source in sources:
                 connection.execute(
-                    "UPDATE sources SET official_status = ? WHERE id = ?",
-                    (source["official_status"], int(row["id"])),
+                    """
+                    INSERT INTO sources (
+                        provider, external_id, source_kind, parser, page_url, api_url,
+                        headers_json, expected_title, discovered_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(provider, external_id) DO UPDATE SET
+                        source_kind = excluded.source_kind,
+                        parser = excluded.parser,
+                        page_url = excluded.page_url,
+                        api_url = excluded.api_url,
+                        headers_json = excluded.headers_json,
+                        expected_title = excluded.expected_title
+                    """,
+                    (
+                        source["provider"],
+                        source["external_id"],
+                        source["source_kind"],
+                        source["parser"],
+                        source["page_url"],
+                        source["api_url"],
+                        json.dumps(source.get("headers") or {}, ensure_ascii=False),
+                        source.get("expected_title", ""),
+                        now,
+                    ),
                 )
-            return int(row["id"])
+                row = connection.execute(
+                    "SELECT id FROM sources WHERE provider = ? AND external_id = ?",
+                    (source["provider"], source["external_id"]),
+                ).fetchone()
+                source_id = int(row["id"])
+                if source.get("official_status"):
+                    connection.execute(
+                        "UPDATE sources SET official_status = ? WHERE id = ?",
+                        (source["official_status"], source_id),
+                    )
+                source_ids.append(source_id)
+        return source_ids
 
     def collection_checkpoint(self, account_uid: str) -> Dict[str, Any]:
         self.initialize()
@@ -1092,4 +1100,45 @@ class Database:
             "counts": counts,
             "source_statuses": {row["status"]: row["count"] for row in source_rows},
             "database_path": str(self.path),
+        }
+
+    def catalog_metadata(self) -> Dict[str, Any]:
+        """Return deterministic, read-only facets for knowledge browsing clients."""
+        self.initialize()
+        with self.connect() as connection:
+            status_rows = connection.execute(
+                """
+                SELECT status, COUNT(*) AS count
+                FROM sources GROUP BY status ORDER BY status
+                """
+            ).fetchall()
+            kind_rows = connection.execute(
+                """
+                SELECT source_kind AS value, COUNT(*) AS count
+                FROM sources
+                WHERE status = 'parsed'
+                GROUP BY source_kind ORDER BY source_kind
+                """
+            ).fetchall()
+            version_rows = connection.execute(
+                """
+                SELECT version AS value, COUNT(*) AS count
+                FROM sources
+                WHERE status = 'parsed' AND version IS NOT NULL AND TRIM(version) != ''
+                GROUP BY version ORDER BY version
+                """
+            ).fetchall()
+            counts = {
+                "sources": connection.execute("SELECT COUNT(*) FROM sources").fetchone()[0],
+                "documents": connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
+                "chunks": connection.execute("SELECT COUNT(*) FROM chunks").fetchone()[0],
+                "eligible_documents": connection.execute(
+                    "SELECT COUNT(*) FROM documents WHERE evidence_eligible = 1"
+                ).fetchone()[0],
+            }
+        return {
+            "counts": counts,
+            "source_statuses": {row["status"]: row["count"] for row in status_rows},
+            "source_kinds": [dict(row) for row in kind_rows],
+            "versions": [dict(row) for row in version_rows],
         }

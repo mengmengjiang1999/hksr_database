@@ -7,6 +7,7 @@ Miyoushe Wiki remains the primary official evidence source. The verified officia
 ## What Changes
 
 - Add resumable cursor-based discovery that walks the verified official Miyoushe account to its reported last page.
+- Add complete, idempotent discovery of the Wiki `游戏图鉴` directory, registering every unique official content ID while excluding separate editorial guide channels.
 - Document ECS as the intended runtime for ordinary collection commands without adding a host restriction or an extra network-activation flag.
 - Add conservative pacing, small batches, jitter, backoff, retry budgets, pause/resume controls, and a single-run lock.
 - Allow a recorded ECS-only unlimited daily-budget override for the initial inventory while preserving the 15–30 second request interval, bounded batches, circuit breaker, and the 60-request safe default.
@@ -31,4 +32,4 @@ Miyoushe Wiki remains the primary official evidence source. The verified officia
 - Real network execution is launched from the ECS deployment directory by procedure; local work uses deterministic fixtures and mocked responses, without a host-specific technical prohibition.
 - Requires an ECS RAM role scoped to the designated private OSS bucket. No AccessKey is stored in the repository or deployment environment.
 - Initial M7B operation remains manually started and deliberately slow; the recurring timer is enabled only after batch audit acceptance.
-- Video media download, speech-to-text generation, Wiki full-channel collection, public serving, and recovery drills remain out of scope.
+- Video media download, speech-to-text generation, separate editorial guide-channel collection, public serving, and recovery drills remain out of scope.

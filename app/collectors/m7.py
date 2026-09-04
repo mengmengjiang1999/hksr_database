@@ -120,13 +120,14 @@ def fetch_remote_json(url: str, headers: Mapping[str, str], timeout: int) -> Rem
 
 
 @contextmanager
-def exclusive_lock(path: Path) -> Iterator[None]:
+def exclusive_lock(path: Path, *, blocking: bool = False) -> Iterator[None]:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     handle = path.open("a+", encoding="utf-8")
     try:
         try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            operation = fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB
+            fcntl.flock(handle.fileno(), operation)
         except BlockingIOError:
             raise RuntimeError("another M7 collection run holds the lock") from None
         yield
@@ -516,6 +517,115 @@ class M7Collector:
                     )
                     report["persisted"] += 1
                     report["dispositions"][disposition] = report["dispositions"].get(disposition, 0) + 1
+                except (OSError, RemoteFailure, RuntimeError, ValueError) as error:
+                    self.database.mark_error(source_id, type(error).__name__)
+                    report["failed"] += 1
+                    if "circuit breaker" in str(error) or "daily request budget" in str(error):
+                        raise
+            report.update({
+                "requests": controller.request_count, "retries": controller.retry_count,
+                "wait_seconds": controller.waits, "finished_at": utc_now(),
+            })
+            self.database.finish_collection_run(run_id, "completed", report)
+            return sanitize_report(report)
+        except BaseException as error:
+            report.update({
+                "status": "interrupted" if isinstance(error, KeyboardInterrupt) else "failed",
+                "error_type": type(error).__name__, "requests": controller.request_count,
+                "retries": controller.retry_count, "finished_at": utc_now(),
+            })
+            self.database.finish_collection_run(run_id, report["status"], report)
+            raise
+
+    def fetch_wiki(
+        self, raw_root: Path, uploader: RawUploader, *, timeout: int = 30,
+        object_prefix: str = "m7/raw",
+    ) -> Dict[str, Any]:
+        """Fetch one bounded batch from the verified Wiki catalog access list."""
+        run_id = self._run_id("wiki-fetch")
+        self.database.start_collection_run(run_id, "wiki_fetch")
+        controller = RequestController(
+            self.database, run_id, self.policy, sleep=self.sleep,
+            jitter=self.jitter, budget_date=self.budget_date,
+        )
+        sources = [
+            row for row in self.database.list_sources(
+                statuses=["discovered", "error"], limit=None
+            ) if row["provider"] == "mihoyo_wiki" and row["official_status"] == "verified"
+        ][: self.policy.fetch_posts]
+        report: Dict[str, Any] = {
+            "schema_version": 1, "run_id": run_id, "stage": "wiki_fetch",
+            "started_at": utc_now(), "content_cap": self.policy.fetch_posts,
+            "daily_budget": self.policy.daily_budget or "unlimited",
+            "attempted": 0, "persisted": 0, "skipped": 0, "failed": 0,
+            "remote_retcodes": {}, "dispositions": {},
+        }
+        try:
+            for source in sources:
+                report["attempted"] += 1
+                source_id = int(source["id"])
+                try:
+                    response = controller.request(
+                        self.fetcher, source["api_url"],
+                        json.loads(source["headers_json"] or "{}"), timeout,
+                        source_id=source_id,
+                    )
+                    retcode = response.payload.get("retcode")
+                    if retcode != 0:
+                        retcode_key = str(retcode)[:32]
+                        disposition = "excluded_unavailable"
+                        reason = "remote_nonzero_retcode_" + retcode_key
+                        self.database.set_disposition(
+                            source_id, disposition, reason, CLASSIFIER_VERSION,
+                        )
+                        self.database.mark_skipped(source_id)
+                        report["skipped"] += 1
+                        report["remote_retcodes"][retcode_key] = (
+                            report["remote_retcodes"].get(retcode_key, 0) + 1
+                        )
+                        report["dispositions"][disposition] = (
+                            report["dispositions"].get(disposition, 0) + 1
+                        )
+                        continue
+                    data = response.payload.get("data")
+                    if not isinstance(data, Mapping) or not isinstance(
+                        data.get("content"), Mapping
+                    ):
+                        raise ValueError("Wiki detail response is malformed")
+                    canonical = json.dumps(
+                        response.payload, ensure_ascii=False, sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                    digest = hashlib.sha256(canonical).hexdigest()
+                    local_path = (
+                        Path(raw_root) / "mihoyo_wiki" /
+                        (source["external_id"] + ".json")
+                    )
+                    local_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    temporary = local_path.with_suffix(".json.tmp")
+                    temporary.write_bytes(canonical)
+                    os.chmod(temporary, 0o600)
+                    temporary.replace(local_path)
+                    object_key = "%s/mihoyo_wiki/%s/%s.json" % (
+                        object_prefix.strip("/"), source["external_id"], digest
+                    )
+                    uploaded = uploader.upload(object_key, canonical)
+                    if not uploaded:
+                        raise RuntimeError("OSS persistence returned no result")
+                    self.database.record_raw_manifest(
+                        source_id, digest, len(canonical), local_path, object_key,
+                        uploaded.get("etag"), uploaded.get("version_id"),
+                        content_fingerprint(source["parser"], response.payload),
+                    )
+                    disposition = "eligible_evidence"
+                    self.database.set_disposition(
+                        source_id, disposition, "official_wiki_catalog_content",
+                        CLASSIFIER_VERSION,
+                    )
+                    report["persisted"] += 1
+                    report["dispositions"][disposition] = (
+                        report["dispositions"].get(disposition, 0) + 1
+                    )
                 except (OSError, RemoteFailure, RuntimeError, ValueError) as error:
                     self.database.mark_error(source_id, type(error).__name__)
                     report["failed"] += 1

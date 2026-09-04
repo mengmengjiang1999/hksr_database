@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from app.models.database import Database
-from app.retrieval import CONTEXT_BY_SOURCE_KIND, normalize_text
+from app.retrieval import normalize_text, source_context
 
 
 EVIDENCE_LEVELS = {"explicit", "inferred", "candidate"}
@@ -234,7 +234,7 @@ def list_relations(
                         "source_title": evidence["title"], "source_kind": evidence["source_kind"],
                         "url": evidence["page_url"], "section_path": evidence["section_path"],
                         "version": evidence["version"],
-                        "context_type": CONTEXT_BY_SOURCE_KIND.get(evidence["source_kind"], "unknown"),
+                        "context_type": source_context(evidence["source_kind"]),
                     })
             item = dict(relation)
             item["direction"] = (

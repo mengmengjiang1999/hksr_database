@@ -63,6 +63,19 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/health").json()["status"], "ok")
         self.assertEqual(self.client.get("/openapi.json").status_code, 200)
 
+    def test_catalog_is_read_only_and_exposes_deterministic_facets(self) -> None:
+        database = Database(self.database_path)
+        before = database.statistics()
+        response = self.client.get("/api/catalog")
+        after = database.statistics()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(before, after)
+        payload = response.json()
+        self.assertEqual(payload["source_statuses"], {"parsed": 1})
+        self.assertEqual(payload["source_kinds"], [{"value": "wiki_character", "count": 1}])
+        self.assertEqual(payload["versions"], [{"value": "1", "count": 1}])
+        self.assertEqual(payload["contexts"], [{"value": "in_game", "count": 1}])
+
     def test_product_page_contains_evidence_and_relation_surfaces(self) -> None:
         page = Path(__file__).resolve().parents[1].joinpath("web/index.html").read_text(
             encoding="utf-8"
@@ -71,7 +84,22 @@ class ApiTests(unittest.TestCase):
         self.assertIn("相邻上下文", page)
         self.assertIn("已审核关联", page)
         self.assertIn("隶属或关联于", page)
-        self.assertIn("查看数据库状态", page)
+        self.assertIn("资料概览", page)
+
+    def test_product_page_contains_navigation_search_and_coverage_states(self) -> None:
+        page = Path(__file__).resolve().parents[1].joinpath("web/index.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('href="#ask"', page)
+        self.assertIn('href="#search"', page)
+        self.assertIn('href="#coverage"', page)
+        self.assertIn("/api/catalog", page)
+        self.assertIn("source_kind", page)
+        self.assertIn("当前资料中没有匹配证据", page)
+        self.assertIn("资料仍在增长", page)
+        self.assertIn("相邻上下文", page)
+        self.assertIn("已审核关联", page)
+        self.assertIn("@media(max-width:640px)", page)
 
     def test_ask_returns_grounded_claim_and_approved_relations(self) -> None:
         response = self.client.post("/api/ask", json={"question": "小三月保持了什么？"})
@@ -92,8 +120,16 @@ class ApiTests(unittest.TestCase):
     def test_search_source_and_entity_browsing(self) -> None:
         search = self.client.get("/api/search", params={"q": "三月七"}).json()
         self.assertIn("纯真", search["results"][0]["text"])
+        self.assertEqual(search["results"][0]["source_id"], self.source_id)
+        filtered = self.client.get(
+            "/api/search",
+            params={"q": "三月七", "source_kind": "wiki_character", "context": "in_game", "version": "1"},
+        ).json()
+        self.assertEqual(len(filtered["results"]), 1)
         source = self.client.get("/api/sources/%d" % self.source_id).json()
         self.assertEqual(source["source"]["external_id"], "1")
+        self.assertEqual(source["source"]["id"], search["results"][0]["source_id"])
+        self.assertEqual(source["source"]["page_url"], search["results"][0]["page_url"])
         entity_id = Database(self.database_path).entity_catalog()[0]["id"]
         entity = self.client.get("/api/entities/%d" % entity_id).json()
         self.assertEqual(entity["entity"]["canonical_name"], "三月七")

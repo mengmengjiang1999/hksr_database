@@ -31,6 +31,7 @@ from app.collectors import (
     build_collection_report,
     discover_manifest,
     discover_official_account,
+    discover_wiki_catalog,
     discover_wiki_search,
     fetch_sources,
     parse_sources,
@@ -252,6 +253,31 @@ def build_parser() -> argparse.ArgumentParser:
     m7_fetch.add_argument("--lock", type=Path, default=DEFAULT_M7_LOCK)
     m7_fetch.add_argument("--output", type=Path)
 
+    m7_wiki_discover = subparsers.add_parser(
+        "m7-wiki-discover", help="Register the complete Wiki game-catalog access list"
+    )
+    m7_wiki_discover.add_argument("--channel-id", type=int, default=17)
+    m7_wiki_discover.add_argument("--timeout", type=int, default=180)
+    m7_wiki_discover.add_argument("--lock", type=Path, default=DEFAULT_M7_LOCK)
+    m7_wiki_discover.add_argument("--output", type=Path)
+
+    m7_wiki_fetch = subparsers.add_parser(
+        "m7-wiki-fetch", help="Fetch and persist one bounded Wiki catalog batch"
+    )
+    m7_wiki_fetch.add_argument("--limit", type=int, default=10)
+    m7_wiki_fetch.add_argument("--allow-cap-override", action="store_true")
+    m7_wiki_fetch.add_argument("--daily-budget", type=int, default=60)
+    m7_wiki_fetch.add_argument("--minimum-delay", type=float, default=15)
+    m7_wiki_fetch.add_argument("--maximum-delay", type=float, default=30)
+    m7_wiki_fetch.add_argument("--timeout", type=int, default=30)
+    m7_wiki_fetch.add_argument("--raw-root", type=Path, default=DEFAULT_M7_RAW_ROOT)
+    m7_wiki_fetch.add_argument("--oss-bucket", default=os.environ.get("HKSR_M7_OSS_BUCKET", ""))
+    m7_wiki_fetch.add_argument("--oss-endpoint", default=os.environ.get("HKSR_M7_OSS_ENDPOINT", ""))
+    m7_wiki_fetch.add_argument("--ram-role", default=os.environ.get("HKSR_M7_RAM_ROLE", ""))
+    m7_wiki_fetch.add_argument("--oss-prefix", default="m7/raw")
+    m7_wiki_fetch.add_argument("--lock", type=Path, default=DEFAULT_M7_LOCK)
+    m7_wiki_fetch.add_argument("--output", type=Path)
+
     m7_review = subparsers.add_parser(
         "m7-review", help="Record a reviewed content disposition without refetching"
     )
@@ -404,6 +430,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         with exclusive_lock(arguments.lock):
             result = M7Collector(database, policy=policy).fetch(
+                arguments.raw_root, uploader, timeout=arguments.timeout,
+                object_prefix=arguments.oss_prefix,
+            )
+        if arguments.output:
+            write_m7_report(arguments.output, result)
+    elif arguments.command == "m7-wiki-discover":
+        with exclusive_lock(arguments.lock, blocking=True):
+            result = discover_wiki_catalog(
+                database, channel_id=arguments.channel_id, timeout=arguments.timeout
+            )
+        if arguments.output:
+            write_m7_report(arguments.output, result)
+    elif arguments.command == "m7-wiki-fetch":
+        if arguments.limit > 10 and not arguments.allow_cap_override:
+            raise ValueError("raising the ten-content cap requires --allow-cap-override")
+        policy = CollectionPolicy(
+            fetch_posts=arguments.limit, daily_budget=arguments.daily_budget,
+            minimum_delay=arguments.minimum_delay, maximum_delay=arguments.maximum_delay,
+        )
+        uploader = OssRamRoleUploader(
+            arguments.oss_bucket, arguments.oss_endpoint, arguments.ram_role
+        )
+        with exclusive_lock(arguments.lock):
+            result = M7Collector(database, policy=policy).fetch_wiki(
                 arguments.raw_root, uploader, timeout=arguments.timeout,
                 object_prefix=arguments.oss_prefix,
             )

@@ -9,11 +9,12 @@ from app.collectors.pipeline import (
     content_fingerprint,
     discover_manifest,
     discover_official_account,
+    discover_wiki_catalog,
     discover_wiki_search,
     fetch_sources,
     parse_sources,
 )
-from app.m0_probe import FetchResult
+from app.m0_probe import FetchResult, ProbeError
 from app.models.database import Database
 from app.parsers.content import extract_speakers, parse_source_payload, split_chunks
 
@@ -231,6 +232,112 @@ class PipelineTests(unittest.TestCase):
         source = self.database.list_sources()[0]
         self.assertEqual(source["source_kind"], "wiki_character")
         self.assertEqual(source["external_id"], "10")
+
+    def test_wiki_catalog_registers_in_game_channels_and_deduplicates_ids(self) -> None:
+        payload = {
+            "retcode": 0,
+            "data": {
+                "list": [
+                    {
+                        "id": 17,
+                        "name": "游戏图鉴",
+                        "children": [
+                            {
+                                "id": 18,
+                                "name": "角色",
+                                "list": [
+                                    {"content_id": 10, "title": "角色甲"},
+                                    {"content_id": 11, "title": "黄金裔乙"},
+                                ],
+                            },
+                            {
+                                "id": 193,
+                                "name": "黄金裔",
+                                "list": [{"content_id": 11, "title": "黄金裔乙"}],
+                            },
+                            {
+                                "id": 173,
+                                "name": "成就攻略",
+                                "list": [{"content_id": 12, "title": "成就丙"}],
+                            },
+                            {
+                                "id": 25,
+                                "name": "任务",
+                                "list": [
+                                    {
+                                        "content_id": 13,
+                                        "title": "支线丁",
+                                        "ext": json.dumps(
+                                            {
+                                                "c_25": {
+                                                    "filter": {
+                                                        "text": json.dumps(
+                                                            ["类型/冒险任务"],
+                                                            ensure_ascii=False,
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            ensure_ascii=False,
+                                        ),
+                                    }
+                                ],
+                            },
+                            {
+                                "id": 999,
+                                "name": "攻略",
+                                "list": [{"content_id": 14, "title": "配队攻略"}],
+                            },
+                        ],
+                    }
+                ]
+            },
+        }
+        fetched = FetchResult(payload=payload, sha256="hash", byte_count=1)
+
+        with patch("app.collectors.pipeline.fetch_json", return_value=fetched):
+            first = discover_wiki_catalog(self.database)
+            second = discover_wiki_catalog(self.database)
+
+        self.assertEqual(first["directory_items"], 5)
+        self.assertEqual(first["unique_sources"], 4)
+        self.assertEqual(first["new_sources"], 4)
+        self.assertEqual(first["duplicate_ids"], 1)
+        self.assertEqual(first["duplicate_occurrences"], 1)
+        self.assertEqual(first["excluded_channels"], ["攻略"])
+        self.assertEqual(first["task_types"], {"冒险任务": 1})
+        self.assertEqual(first["task_untyped"], 0)
+        self.assertEqual(second["new_sources"], 0)
+        self.assertEqual(second["existing_sources"], 4)
+        sources = {row["external_id"]: row for row in self.database.list_sources()}
+        self.assertEqual(set(sources), {"10", "11", "12", "13"})
+        self.assertEqual(sources["11"]["source_kind"], "wiki_character")
+        self.assertEqual(sources["12"]["source_kind"], "wiki_achievement")
+        self.assertEqual(sources["13"]["source_kind"], "wiki_quest")
+        self.assertEqual(sources["10"]["official_status"], "verified")
+        self.assertIn("content/10/detail", sources["10"]["page_url"])
+
+        with self.database.connect() as connection:
+            connection.execute(
+                "UPDATE sources SET status = 'parsed' WHERE external_id = '10'"
+            )
+        with patch("app.collectors.pipeline.fetch_json", return_value=fetched):
+            discover_wiki_catalog(self.database)
+        self.assertEqual(
+            {row["external_id"]: row for row in self.database.list_sources()}["10"]["status"],
+            "parsed",
+        )
+
+    def test_wiki_catalog_rejects_malformed_directory(self) -> None:
+        fetched = FetchResult(
+            payload={"retcode": 0, "data": {"list": [{"id": 17}]}},
+            sha256="hash",
+            byte_count=1,
+        )
+
+        with patch("app.collectors.pipeline.fetch_json", return_value=fetched):
+            with self.assertRaisesRegex(ProbeError, "root is missing or malformed"):
+                discover_wiki_catalog(self.database)
 
     def test_official_account_discovery_skips_unverified_posts(self) -> None:
         verified = {

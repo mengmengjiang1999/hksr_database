@@ -3,6 +3,7 @@
 from .pipeline import (
     discover_manifest,
     discover_official_account,
+    discover_wiki_catalog,
     discover_wiki_search,
     fetch_sources,
     parse_sources,
@@ -21,6 +22,7 @@ from .m7 import (
 __all__ = [
     "discover_manifest",
     "discover_official_account",
+    "discover_wiki_catalog",
     "discover_wiki_search",
     "fetch_sources",
     "parse_sources",

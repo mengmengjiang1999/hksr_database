@@ -13,7 +13,7 @@ from app.collectors import fetch_sources, parse_sources
 from app.knowledge import audit_relations, build_relations, list_relations
 from app.models.database import Database
 from app.qa import answer_question
-from app.retrieval import build_retrieval_index, hybrid_search, normalize_text
+from app.retrieval import build_retrieval_index, hybrid_search, normalize_text, source_context
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -119,6 +119,18 @@ def create_app(
     @app.get("/api/health")
     def health() -> Dict[str, Any]:
         return {"status": "ok", "local_only_default": True}
+
+    @app.get("/api/catalog")
+    def catalog() -> Dict[str, Any]:
+        metadata = database.catalog_metadata()
+        contexts: Dict[str, int] = {}
+        for item in metadata["source_kinds"]:
+            context = source_context(item["value"])
+            contexts[context] = contexts.get(context, 0) + int(item["count"])
+        metadata["contexts"] = [
+            {"value": value, "count": contexts[value]} for value in sorted(contexts)
+        ]
+        return metadata
 
     @app.post("/api/ask")
     def ask(request: AskRequest) -> Dict[str, Any]:

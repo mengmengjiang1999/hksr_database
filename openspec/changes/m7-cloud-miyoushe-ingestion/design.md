@@ -11,6 +11,7 @@ Miyoushe Wiki is the primary official source. Verified official-account posts ar
 **Goals:**
 
 - Walk the verified official account history to its terminal cursor across multiple small, resumable ECS runs.
+- Register the complete Wiki `游戏图鉴` directory by official content ID, including characters, equipment, enemies, achievements, all task types, materials, items, game modes, readables, and other in-game catalog categories.
 - Keep request volume deliberately low through hard batch caps, delay jitter, daily budgets, retries, and circuit breaking.
 - Store canonical raw responses in the private OSS bucket before considering a fetch durable.
 - Classify every discovered post into an explicit evidence, exclusion, missing-text, or review state.
@@ -24,7 +25,7 @@ Miyoushe Wiki is the primary official source. Verified official-account posts ar
 - Adding a host-specific marker that makes local network execution technically impossible.
 - Downloading or redistributing video binaries.
 - Generating speech-to-text when an official subtitle is absent.
-- Completing Wiki character, quest, or readable discovery.
+- Collecting separate editorial guide channels outside the Wiki `游戏图鉴` root.
 - Publishing the application or database to the Internet.
 - Replacing the application read path with PostgreSQL in this change.
 - Running recovery drills or synthetic scale benchmarks.
@@ -42,6 +43,14 @@ Alternative: require an explicit network flag, `/etc/hksr/collector-enabled`, in
 Discovery stores only verified metadata and the next cursor. Body fetching is a separate bounded command; parsing and RDS reconciliation operate only on already stored content. Each stage records a run ID and can resume without repeating completed work.
 
 Alternative: one command walks all pages and downloads every body. Rejected because it creates request bursts, makes interruption recovery unclear, and conflicts with the user's M7B pacing requirement.
+
+### Treat the Wiki game catalog as a complete primary-source access list
+
+The official Wiki directory endpoint for root channel `17` is the source of truth for the access list. One catalog discovery request registers every child-channel item by stable `content_id`, builds deterministic detail and page URLs, preserves a primary category for parsing and retrieval, and deduplicates IDs that appear in multiple channels. The `成就攻略` catalog is retained as achievement data by explicit user decision, while separate editorial guide channels outside the game-catalog root remain excluded. Re-running discovery updates metadata and adds new IDs without resetting already fetched or parsed rows.
+
+The 2026-09-04 observation contains 5,319 channel entries and 5,292 unique content IDs. This is a point-in-time measurement rather than a completion constant; later incremental runs use the directory response rather than this recorded number.
+
+Alternative: commit a static list of 5,292 URLs. Rejected because it becomes stale after game updates and loses category and deduplication evidence.
 
 ### Use conservative hard defaults
 
@@ -111,8 +120,10 @@ Provide a systemd oneshot unit and timer with locking, request budgets, and jour
 5. Review the M7A report, classification results, raw-object hashes, parser failures, and RDS reconciliation before continuing.
 6. Run M7B in repeated two-page discovery and ten-body fetch batches under the explicitly authorized initial-inventory budget mode. Audit every generated batch report.
 7. Continue until the official listing reports its terminal cursor and every discovered item has a disposition.
-8. Complete M7C reconciliation, search sampling, reports, and three clean incremental no-change runs.
-9. Install the timer disabled; enable it only after explicit approval.
+8. Discover the complete Wiki game-catalog directory on ECS and add its unique content IDs to the staging access queue without interrupting the official-account collector.
+9. Fetch, privately persist, parse, and reconcile the queued Wiki details with the same observable, restartable operating discipline.
+10. Complete M7C reconciliation, search sampling, reports, and three clean incremental no-change runs.
+11. Install the timer disabled; enable it only after explicit approval.
 
 Rollback disables the timer, stops future collection, and retains checkpoints and private raw objects for diagnosis. Database rollback, if explicitly requested, targets only the recorded M7 batch/source identities; it never drops the shared schema or deletes older M6 evidence.
 

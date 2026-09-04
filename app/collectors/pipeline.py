@@ -14,6 +14,53 @@ from app.models.database import Database
 from app.parsers import parse_source_payload
 
 
+WIKI_CATALOG_URL = (
+    "https://act-api-takumi-static.mihoyo.com/common/blackboard/"
+    "sr_wiki/v1/home/content/list"
+)
+WIKI_PAGE_URL = (
+    "https://bbs.mihoyo.com/sr/wiki/content/{content_id}/detail"
+    "?bbs_presentation_style=no_header"
+)
+WIKI_DETAIL_URL = (
+    "https://act-api-takumi-static.mihoyo.com/common/blackboard/"
+    "sr_wiki/v1/content/info?app_sn=sr_wiki&content_id={content_id}"
+)
+WIKI_EDITORIAL_CHANNELS = {"攻略"}
+WIKI_CHANNEL_SOURCE_KINDS = {
+    "角色": "wiki_character",
+    "黄金裔": "wiki_character",
+    "黄金裔WIKI": "wiki_character",
+    "光锥": "wiki_light_cone",
+    "遗器": "wiki_relic",
+    "敌对物种": "wiki_enemy",
+    "家具": "wiki_furniture",
+    "成就攻略": "wiki_achievement",
+    "任务": "wiki_quest",
+    "装扮": "wiki_outfit",
+    "养成材料": "wiki_material",
+    "其他材料": "wiki_material",
+    "消耗品": "wiki_consumable",
+    "任务道具": "wiki_quest_item",
+    "贵重物": "wiki_valuable",
+    "逐光捡金": "wiki_endgame",
+    "模拟宇宙": "wiki_simulated_universe",
+    "模拟宇宙·事件图鉴": "wiki_simulated_universe",
+    "活动": "wiki_event",
+    "阅读物": "wiki_readable",
+    "特殊道具": "wiki_special_item",
+    "商店": "wiki_shop",
+    "委托": "wiki_assignment",
+    "战利品收集": "wiki_collectible",
+    "负世泰坦": "wiki_enemy",
+    "梦境护照": "wiki_dreamscape_pass",
+    "狸狸社刊": "wiki_periodical",
+}
+WIKI_CHANNEL_PRIORITY = {
+    name: position for position, name in enumerate(WIKI_CHANNEL_SOURCE_KINDS)
+}
+
+
 def _source_identity(target: Mapping[str, Any]) -> Dict[str, str]:
     query = parse_qs(urlparse(target["api_url"]).query)
     if target["parser"] == "wiki_content":
@@ -119,6 +166,121 @@ def discover_wiki_search(
             break
     result["registered"] = len(registered_ids)
     return result
+
+
+def discover_wiki_catalog(
+    database: Database,
+    channel_id: int = 17,
+    timeout: int = 180,
+) -> Dict[str, Any]:
+    """Register every unique Wiki game-catalog content ID from one directory response."""
+    api_url = WIKI_CATALOG_URL + "?" + urlencode(
+        {"app_sn": "sr_wiki", "channel_id": channel_id}
+    )
+    fetched = fetch_json(api_url, timeout=timeout)
+    payload = fetched.payload
+    if payload.get("retcode") != 0 or not isinstance(payload.get("data"), Mapping):
+        raise ProbeError("Wiki catalog returned a non-zero retcode or malformed data")
+    roots = payload["data"].get("list")
+    if not isinstance(roots, list):
+        raise ProbeError("Wiki catalog root list is malformed")
+    root = next((item for item in roots if item.get("id") == channel_id), None)
+    if not isinstance(root, Mapping) or not isinstance(root.get("children"), list):
+        raise ProbeError("Wiki game-catalog root is missing or malformed")
+
+    by_content: Dict[str, Dict[str, Any]] = {}
+    channel_counts: Dict[str, int] = {}
+    task_types: Dict[str, int] = {}
+    task_untyped = 0
+    excluded_channels: List[str] = []
+    directory_items = 0
+    skipped_missing_id = 0
+    for channel in root["children"]:
+        if not isinstance(channel, Mapping):
+            raise ProbeError("Wiki catalog channel is malformed")
+        name = str(channel.get("name") or "")
+        if name in WIKI_EDITORIAL_CHANNELS:
+            excluded_channels.append(name)
+            continue
+        items = channel.get("list") or []
+        if not isinstance(items, list):
+            raise ProbeError("Wiki catalog channel list is malformed")
+        channel_counts[name] = len(items)
+        directory_items += len(items)
+        for item in items:
+            if not isinstance(item, Mapping) or not item.get("content_id"):
+                skipped_missing_id += 1
+                continue
+            external_id = str(item["content_id"])
+            if name == "任务":
+                item_types: List[str] = []
+                try:
+                    extension = json.loads(str(item.get("ext") or "{}"))
+                    filters = json.loads(
+                        extension.get("c_25", {})
+                        .get("filter", {})
+                        .get("text", "[]")
+                    )
+                    item_types = [
+                        value.split("/", 1)[1]
+                        for value in filters
+                        if isinstance(value, str) and value.startswith("类型/")
+                    ]
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    item_types = []
+                if item_types:
+                    for item_type in item_types:
+                        task_types[item_type] = task_types.get(item_type, 0) + 1
+                else:
+                    task_untyped += 1
+            entry = by_content.setdefault(
+                external_id,
+                {"title": str(item.get("title") or ""), "channels": []},
+            )
+            entry["channels"].append(name)
+
+    existing = {
+        str(row["external_id"])
+        for row in database.list_sources()
+        if row["provider"] == "mihoyo_wiki"
+    }
+    targets = []
+    for external_id, entry in sorted(by_content.items(), key=lambda value: int(value[0])):
+        primary_channel = min(
+            entry["channels"],
+            key=lambda name: (WIKI_CHANNEL_PRIORITY.get(name, 10_000), name),
+        )
+        targets.append(
+            {
+                "provider": "mihoyo_wiki",
+                "external_id": external_id,
+                "source_kind": WIKI_CHANNEL_SOURCE_KINDS.get(
+                    primary_channel, "wiki_content"
+                ),
+                "parser": "wiki_content",
+                "page_url": WIKI_PAGE_URL.format(content_id=external_id),
+                "api_url": WIKI_DETAIL_URL.format(content_id=external_id),
+                "headers": {},
+                "expected_title": entry["title"],
+                "official_status": "verified",
+            }
+        )
+    database.upsert_sources(targets)
+    duplicate_ids = sum(1 for entry in by_content.values() if len(entry["channels"]) > 1)
+    return {
+        "channel_id": channel_id,
+        "channels": channel_counts,
+        "task_types": dict(sorted(task_types.items())),
+        "task_untyped": task_untyped,
+        "directory_items": directory_items,
+        "unique_sources": len(targets),
+        "new_sources": len(set(by_content) - existing),
+        "existing_sources": len(set(by_content) & existing),
+        "duplicate_ids": duplicate_ids,
+        "duplicate_occurrences": directory_items - len(targets) - skipped_missing_id,
+        "skipped_missing_id": skipped_missing_id,
+        "excluded_channels": sorted(excluded_channels),
+    }
 
 
 def discover_official_account(

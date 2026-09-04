@@ -30,6 +30,13 @@ CONTEXT_BY_SOURCE_KIND = {
     "official_video": "promotional",
 }
 
+
+def source_context(source_kind: str) -> str:
+    """Map a source kind to the user-facing evidence context."""
+    if source_kind.startswith("wiki_"):
+        return "in_game"
+    return CONTEXT_BY_SOURCE_KIND.get(source_kind, "unknown")
+
 QUESTION_WORDS = (
     "请问", "根据官方资料", "根据游戏文本", "是什么", "为什么", "怎么样",
     "怎样", "如何", "哪些", "哪个", "哪里", "何时", "是否", "有关",
@@ -183,7 +190,7 @@ def hybrid_search(
 
     candidates = []
     for row in database.retrieval_rows():
-        context = CONTEXT_BY_SOURCE_KIND.get(row["source_kind"], "unknown")
+        context = source_context(row["source_kind"])
         if source_kinds and row["source_kind"] not in source_kinds:
             continue
         if version is not None and str(row["version"] or "") != str(version):
