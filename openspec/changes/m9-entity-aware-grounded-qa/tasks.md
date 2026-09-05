@@ -49,4 +49,4 @@
 - [x] 8.1 Replace per-request full-corpus vector loading with bounded FTS and resolved-entity candidate loading.
 - [x] 8.2 Add interactive retrieval concurrency protection and a finite browser request deadline.
 - [x] 8.3 Add regression coverage for bounded candidate loading, busy responses, and browser timeout behavior.
-- [ ] 8.4 Run focused retrieval/API tests, the full offline suite, strict OpenSpec validation, and an ECS large-corpus latency and memory check.
+- [x] 8.4 Run focused retrieval/API tests, the full offline suite, strict OpenSpec validation, and an ECS large-corpus latency and memory check.
