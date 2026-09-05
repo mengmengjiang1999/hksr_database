@@ -27,3 +27,10 @@ Retrieval evaluation MUST classify failures as corpus missing, parse or chunk er
 #### Scenario: Expected evidence has not yet been collected
 - **WHEN** a labelled question references an official page still in discovered state
 - **THEN** the report records a corpus gap instead of counting it as an unexplained ranking regression
+
+### Requirement: Bounded candidate reranking
+The system MUST use indexed lexical and resolved-entity candidates before loading semantic vectors, and MUST NOT deserialize or score the entire eligible corpus for one interactive query.
+
+#### Scenario: Wiki corpus grows beyond ECS memory budget
+- **WHEN** an interactive query is evaluated against a large collected corpus
+- **THEN** semantic and entity reranking loads at most the configured candidate bound while preserving exact-entity candidates and score diagnostics

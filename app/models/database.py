@@ -486,8 +486,25 @@ class Database:
             )
         return len(vectors)
 
-    def retrieval_rows(self) -> List[Dict[str, Any]]:
+    def retrieval_rows(
+        self, chunk_ids: Optional[Sequence[int]] = None
+    ) -> List[Dict[str, Any]]:
         self.initialize()
+        selected_ids = None
+        if chunk_ids is not None:
+            selected_ids = list(dict.fromkeys(int(chunk_id) for chunk_id in chunk_ids))
+            if not selected_ids:
+                return []
+        row_filter = ""
+        row_parameters: List[Any] = []
+        entity_filter = ""
+        entity_parameters: List[Any] = []
+        if selected_ids is not None:
+            placeholders = ",".join("?" for _ in selected_ids)
+            row_filter = " AND c.id IN (%s)" % placeholders
+            row_parameters.extend(selected_ids)
+            entity_filter = " WHERE ec.chunk_id IN (%s)" % placeholders
+            entity_parameters.extend(selected_ids)
         with self.connect() as connection:
             rows = connection.execute(
                 """
@@ -502,14 +519,16 @@ class Database:
                 JOIN sources s ON s.id = d.source_id
                 LEFT JOIN chunk_vectors v ON v.chunk_id = c.id
                 WHERE d.evidence_eligible = 1 AND s.status = 'parsed'
-                """
+                """ + row_filter,
+                row_parameters,
             ).fetchall()
             entity_rows = connection.execute(
                 """
                 SELECT ec.chunk_id, e.id, e.canonical_name, e.entity_type,
                        ec.matched_text
                 FROM entity_chunks ec JOIN entities e ON e.id = ec.entity_id
-                """
+                """ + entity_filter,
+                entity_parameters,
             ).fetchall()
         entities: Dict[int, List[Dict[str, Any]]] = {}
         for row in entity_rows:
@@ -531,6 +550,32 @@ class Database:
             )
             output.append(item)
         return output
+
+    def entity_chunk_ids(
+        self, entity_ids: Sequence[int], limit: int = 200
+    ) -> List[int]:
+        selected_ids = list(dict.fromkeys(int(entity_id) for entity_id in entity_ids))
+        if not selected_ids or limit <= 0:
+            return []
+        placeholders = ",".join("?" for _ in selected_ids)
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT ec.chunk_id, COUNT(*) AS matched_entities
+                FROM entity_chunks ec
+                JOIN chunks c ON c.id = ec.chunk_id
+                JOIN documents d ON d.id = c.document_id
+                JOIN sources s ON s.id = d.source_id
+                WHERE ec.entity_id IN (%s)
+                  AND d.evidence_eligible = 1
+                  AND s.status = 'parsed'
+                GROUP BY ec.chunk_id
+                ORDER BY matched_entities DESC, ec.chunk_id
+                LIMIT ?
+                """ % placeholders,
+                [*selected_ids, int(limit)],
+            ).fetchall()
+        return [int(row["chunk_id"]) for row in rows]
 
     def evidence_context(self, evidence_id: str, window: int = 1) -> Dict[str, Any]:
         """Return one evidence item plus neighbouring chunks in its document."""
@@ -1251,19 +1296,25 @@ class Database:
             ).fetchone()
             if exists is None:
                 raise RuntimeError("FTS index is missing; run the index command first")
-            rows = connection.execute(
-                """
-                SELECT
-                    f.chunk_id, f.source_id, f.section_path, f.speaker, f.text,
-                    bm25(chunks_fts) AS score, s.title, s.page_url, s.source_kind
-                FROM chunks_fts f
-                JOIN sources s ON s.id = f.source_id
-                WHERE chunks_fts MATCH ? AND s.status = 'parsed'
-                ORDER BY score
-                LIMIT ?
-                """,
-                (fts_query, limit),
-            ).fetchall()
+            try:
+                rows = connection.execute(
+                    """
+                    SELECT
+                        f.chunk_id, f.source_id, f.section_path, f.speaker, f.text,
+                        bm25(chunks_fts) AS score, s.title, s.page_url, s.source_kind
+                    FROM chunks_fts f
+                    JOIN sources s ON s.id = f.source_id
+                    WHERE chunks_fts MATCH ? AND s.status = 'parsed'
+                    ORDER BY score
+                    LIMIT ?
+                    """,
+                    (fts_query, limit),
+                ).fetchall()
+            except sqlite3.OperationalError:
+                # Trigram FTS cannot match terms shorter than three characters.
+                # The bounded literal fallback still produces candidate IDs
+                # without loading semantic vectors for the whole corpus.
+                rows = []
             if not rows:
                 literal = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
                 pattern = "%%%s%%" % literal

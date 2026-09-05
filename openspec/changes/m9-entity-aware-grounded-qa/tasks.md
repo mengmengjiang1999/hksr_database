@@ -43,3 +43,10 @@
 - [x] 7.2 Deploy deterministic entity, intent and direct-answer behavior to ECS behind a reversible feature flag and compare the real-question baseline.
 - [ ] 7.3 Configure one optional private model trial without committing credentials, verify timeout and fallback, and record latency and usage limits.
 - [x] 7.4 Re-run the versioned evaluation as Wiki coverage grows and defer final retrieval thresholds until the M7 corpus is sufficiently complete.
+
+## 8. Interactive retrieval scalability
+
+- [x] 8.1 Replace per-request full-corpus vector loading with bounded FTS and resolved-entity candidate loading.
+- [x] 8.2 Add interactive retrieval concurrency protection and a finite browser request deadline.
+- [x] 8.3 Add regression coverage for bounded candidate loading, busy responses, and browser timeout behavior.
+- [ ] 8.4 Run focused retrieval/API tests, the full offline suite, strict OpenSpec validation, and an ECS large-corpus latency and memory check.

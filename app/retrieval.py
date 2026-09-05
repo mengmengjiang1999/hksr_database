@@ -14,6 +14,9 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set
 from app.models.database import Database
 
 
+MAX_RERANK_CANDIDATES = 500
+MAX_ENTITY_CANDIDATES = 200
+
 SOURCE_WEIGHTS = {
     "wiki_quest": 1.0,
     "wiki_readable": 1.0,
@@ -202,7 +205,7 @@ def hybrid_search(
     lexical_terms = _lexical_terms(query, matched_entities)
     lexical_denominator = float(sum(len(term) ** 2 for term in lexical_terms)) or 1.0
     fts_scores: Dict[int, float] = {}
-    for term in [item for item in lexical_terms if len(item) >= 3][:12]:
+    for term in [item for item in lexical_terms if len(item) >= 2][:12]:
         try:
             fts_results = database.search(term, limit=100)
         except sqlite3.OperationalError:
@@ -210,10 +213,24 @@ def hybrid_search(
         for rank, result in enumerate(fts_results, start=1):
             chunk_id = int(result["chunk_id"])
             fts_scores[chunk_id] = fts_scores.get(chunk_id, 0.0) + 1.0 / (20.0 + rank)
+    entity_candidate_ids = database.entity_chunk_ids(
+        sorted(matched_entity_ids), limit=MAX_ENTITY_CANDIDATES
+    )
+    candidate_ids = list(entity_candidate_ids)
+    seen_candidate_ids = set(candidate_ids)
+    for chunk_id, _score in sorted(
+        fts_scores.items(), key=lambda item: (-item[1], item[0])
+    ):
+        if chunk_id not in seen_candidate_ids:
+            candidate_ids.append(chunk_id)
+            seen_candidate_ids.add(chunk_id)
+        if len(candidate_ids) >= MAX_RERANK_CANDIDATES:
+            break
+    candidate_ids = candidate_ids[:MAX_RERANK_CANDIDATES]
     maximum_fts = max(fts_scores.values(), default=0.0)
 
     candidates = []
-    for row in database.retrieval_rows():
+    for row in database.retrieval_rows(candidate_ids):
         context = source_context(row["source_kind"])
         if source_kinds and row["source_kind"] not in source_kinds:
             continue

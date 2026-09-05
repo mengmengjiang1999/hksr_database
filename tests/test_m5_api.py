@@ -163,6 +163,23 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/sources/9999").status_code, 404)
         self.assertEqual(self.client.get("/api/entities/9999").status_code, 404)
 
+    def test_busy_retrieval_is_rejected_without_blocking(self) -> None:
+        self.assertTrue(self.client.app.state.retrieval_slots.acquire(blocking=False))
+        try:
+            response = self.client.get("/api/search", params={"q": "三月七"})
+        finally:
+            self.client.app.state.retrieval_slots.release()
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.headers["retry-after"], "2")
+        self.assertIn("正忙", response.json()["detail"])
+
+    def test_product_page_has_finite_request_deadline(self) -> None:
+        page = Path(__file__).resolve().parents[1].joinpath("web/index.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("AbortController", page)
+        self.assertIn("请求超过 25 秒", page)
+
     def test_search_source_and_entity_browsing(self) -> None:
         search = self.client.get("/api/search", params={"q": "三月七"}).json()
         self.assertIn("纯真", search["results"][0]["text"])

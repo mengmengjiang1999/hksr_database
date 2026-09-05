@@ -56,6 +56,14 @@ Intent-aware ranking preserves Wiki as the primary source and uses verified offi
 
 Alternative: rank all official sources only by similarity. Rejected because promotional or operational wording could outrank direct in-game material.
 
+### Bound semantic reranking to indexed candidates
+
+Use FTS and resolved entity-to-chunk links as the candidate-generation stage, then load vectors and entity annotations only for a bounded union of those chunk IDs. Semantic, entity, section, source-quality and diversity scoring continue to run on that candidate set. A query with no indexed candidates returns no evidence instead of loading every vector in the corpus.
+
+Alternative: deserialize and score every eligible chunk for every request. Rejected because request latency and memory grow linearly with the collected corpus and concurrent requests can exhaust the private ECS instance.
+
+The API admits only a bounded number of simultaneous retrieval requests, and the browser aborts a request that exceeds its deadline so a failed worker cannot leave the interface loading indefinitely.
+
 ### Extend the existing API compatibly
 
 Keep `POST /api/ask` and all existing fields. Add versioned fields for intent, resolved entities, ambiguity, partial support, generation outcome and fallback. The browser renders these fields when present and remains compatible with deterministic responses.
@@ -69,6 +77,8 @@ Alternative: create a second answer endpoint. Rejected because it duplicates cli
 - [Deterministic Chinese intent patterns miss unusual wording] → Fall back to generic retrieval, record unknown intent, and expand patterns from failed real questions.
 - [A model returns persuasive unsupported prose] → Require structured claims and exact support spans, validate before rendering, and default to fallback.
 - [Growing corpus changes rankings] → Record corpus fingerprints and separate provisional metrics from final M7-complete acceptance.
+- [Candidate bounding drops a weak lexical-only semantic match] → Union FTS candidates with exact resolved-entity links, retain score diagnostics, and cover known questions with retrieval regression tests.
+- [Concurrent retrieval exhausts ECS memory] → Bound candidate count, reject excess concurrent searches, and expose a finite browser deadline.
 - [Generation adds latency and cost] → Bound evidence size and timeout, record provider-neutral usage, cache only validated results by corpus and prompt version, and keep generation optional.
 - [SQLite work is later replaced by RDS] → Keep entity, retrieval and answer behavior behind existing domain/API contracts; schedule the RDS read adapter as a separate infrastructure change.
 

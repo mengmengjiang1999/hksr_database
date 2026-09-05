@@ -19,3 +19,10 @@ The private interface SHALL distinguish narrative identity, playable forms, offi
 #### Scenario: User asks about a character SP form
 - **WHEN** the answer contains a same-person conclusion and a separate playable-form distinction
 - **THEN** both facts are displayed directly, player shorthand is visibly non-official, and official evidence remains expandable
+
+### Requirement: Bounded interactive retrieval
+The private application MUST prevent overlapping interactive retrieval from exhausting the service and MUST terminate the browser loading state after a finite request deadline.
+
+#### Scenario: Retrieval capacity is already occupied
+- **WHEN** another interactive retrieval request exceeds the configured concurrency capacity
+- **THEN** the API returns a retryable busy response and the browser renders an actionable error instead of loading indefinitely

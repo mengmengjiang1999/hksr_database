@@ -102,7 +102,7 @@
     const relationLabels={affiliated_with:'隶属或关联于',appears_in:'出现于',occurs_in:'发生于',uses:'使用',associated_with:'关联于',co_occurs_with:'共同出现'};
     const evidenceLabels={explicit:'原文明示',inferred:'证据推导',candidate:'待审核候选'}, directionLabels={outgoing:'正向关系',incoming:'反向关系'};
     let catalogCache=null;
-    async function jsonFetch(url,options){const response=await fetch(url,options);let data;try{data=await response.json()}catch{throw new Error('服务返回了无法解析的内容')}if(!response.ok)throw new Error(data.detail||`请求失败 (${response.status})`);return data}
+    async function jsonFetch(url,options={},timeoutMs=25000){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);try{const response=await fetch(url,{...options,signal:controller.signal});let data;try{data=await response.json()}catch{throw new Error('服务返回了无法解析的内容')}if(!response.ok)throw new Error(data.detail||`请求失败 (${response.status})`);return data}catch(error){if(error.name==='AbortError')throw new Error('请求超过 25 秒，请稍后重试');throw error}finally{clearTimeout(timer)}}
     function safeUrl(value){try{const url=new URL(value,location.origin);return ['http:','https:'].includes(url.protocol)?url.href:'#'}catch{return '#'}}
     function announce(message){$('#announcer').textContent=message} function setActive(route){$$('[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav===route))}
     function hero(kicker,title,description){return `<section class="hero"><div class="eyebrow">${esc(kicker)}</div><h1>${esc(title)}</h1><p class="lede">${esc(description)}</p></section>`}

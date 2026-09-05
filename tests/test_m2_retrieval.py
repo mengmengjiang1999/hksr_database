@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from app.models.database import Database
 from app.retrieval import build_retrieval_index, evaluate_retrieval, hybrid_search
@@ -81,6 +82,17 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(first["entities"], second["entities"])
         self.assertEqual(first["entity_chunk_links"], second["entity_chunk_links"])
         self.assertEqual(first["semantic_vectors"], second["semantic_vectors"])
+
+    def test_hybrid_search_loads_only_bounded_candidates(self) -> None:
+        with mock.patch.object(
+            self.database, "retrieval_rows", wraps=self.database.retrieval_rows
+        ) as retrieval_rows:
+            results = hybrid_search(self.database, "小三月有什么一直没有失去？", limit=2)
+        self.assertTrue(results)
+        candidate_ids = retrieval_rows.call_args.args[0]
+        self.assertIsNotNone(candidate_ids)
+        self.assertTrue(candidate_ids)
+        self.assertLessEqual(len(candidate_ids), 500)
 
     def test_evaluator_reports_top_k(self) -> None:
         dataset = self.root / "evaluation.json"

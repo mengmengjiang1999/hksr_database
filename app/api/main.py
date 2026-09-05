@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -117,6 +118,25 @@ def create_app(
         else os.environ.get("HKSR_M9_ENTITY_QA_ENABLED", "1").strip().lower()
              not in {"0", "false", "no", "off"}
     )
+    try:
+        retrieval_concurrency = max(
+            1, int(os.environ.get("HKSR_RETRIEVAL_CONCURRENCY", "1"))
+        )
+    except ValueError:
+        retrieval_concurrency = 1
+    app.state.retrieval_concurrency = retrieval_concurrency
+    app.state.retrieval_slots = threading.BoundedSemaphore(retrieval_concurrency)
+
+    def acquire_retrieval_slot() -> None:
+        if not app.state.retrieval_slots.acquire(blocking=False):
+            raise HTTPException(
+                status_code=503,
+                detail="检索服务正忙，请稍后重试",
+                headers={"Retry-After": "2"},
+            )
+
+    def release_retrieval_slot() -> None:
+        app.state.retrieval_slots.release()
 
     @app.get("/", response_class=HTMLResponse)
     def home() -> HTMLResponse:
@@ -145,25 +165,29 @@ def create_app(
 
     @app.post("/api/ask")
     def ask(request: AskRequest) -> Dict[str, Any]:
-        answerer = answer_question if app.state.entity_qa_enabled else answer_question_legacy
-        result = answerer(
-            database, request.question.strip(), limit=request.limit,
-            minimum_score=request.minimum_score, source_kinds=request.source_kinds,
-            contexts=request.contexts,
-        )
-        if request.use_generation and app.state.entity_qa_enabled:
-            result = app.state.generation_service.answer(
-                database, request.question.strip(), result, limit=request.limit
+        acquire_retrieval_slot()
+        try:
+            answerer = answer_question if app.state.entity_qa_enabled else answer_question_legacy
+            result = answerer(
+                database, request.question.strip(), limit=request.limit,
+                minimum_score=request.minimum_score, source_kinds=request.source_kinds,
+                contexts=request.contexts,
             )
-        else:
-            result.update({"generation_outcome": "not_requested", "generation_fallback": True})
-        if not app.state.entity_qa_enabled:
-            result.update({"intent": "legacy", "resolved_entities": [], "ambiguity": None,
-                           "partial_support": {"is_partial": False, "supported_parts": [],
-                                               "unsupported_parts": []},
-                           "answer_strategy": "legacy_extractive"})
-        result["related_entities"] = _question_entities(database, request.question)
-        return result
+            if request.use_generation and app.state.entity_qa_enabled:
+                result = app.state.generation_service.answer(
+                    database, request.question.strip(), result, limit=request.limit
+                )
+            else:
+                result.update({"generation_outcome": "not_requested", "generation_fallback": True})
+            if not app.state.entity_qa_enabled:
+                result.update({"intent": "legacy", "resolved_entities": [], "ambiguity": None,
+                               "partial_support": {"is_partial": False, "supported_parts": [],
+                                                   "unsupported_parts": []},
+                               "answer_strategy": "legacy_extractive"})
+            result["related_entities"] = _question_entities(database, request.question)
+            return result
+        finally:
+            release_retrieval_slot()
 
     @app.get("/api/identities")
     def identities(include_pending: bool = False) -> Dict[str, Any]:
@@ -177,10 +201,14 @@ def create_app(
         context: Optional[List[str]] = Query(default=None),
         version: Optional[str] = None,
     ) -> Dict[str, Any]:
-        return {"query": q, "results": hybrid_search(
-            database, q, limit=limit, source_kinds=source_kind,
-            contexts=context, version=version,
-        )}
+        acquire_retrieval_slot()
+        try:
+            return {"query": q, "results": hybrid_search(
+                database, q, limit=limit, source_kinds=source_kind,
+                contexts=context, version=version,
+            )}
+        finally:
+            release_retrieval_slot()
 
     @app.get("/api/sources/{source_id}")
     def source(source_id: int) -> Dict[str, Any]:
