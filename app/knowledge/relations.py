@@ -171,7 +171,7 @@ def build_relations(database: Database, catalogue_path: Path) -> Dict[str, Any]:
 
 
 def audit_relations(database: Database, update: bool = True) -> Dict[str, Any]:
-    current = {item["evidence_id"] for item in database.retrieval_rows()}
+    current = database.evidence_ids()
     stale_ids = []
     with database.connect() as connection:
         relation_rows = connection.execute("SELECT id FROM relations ORDER BY id").fetchall()
@@ -197,7 +197,6 @@ def list_relations(
     include_candidates: bool = False,
 ) -> List[Dict[str, Any]]:
     stale_ids = set(audit_relations(database, update=False)["stale_ids"])
-    rows_by_evidence = {item["evidence_id"]: item for item in database.retrieval_rows()}
     query = """
         SELECT r.*, s.canonical_name AS subject_name, s.entity_type AS subject_type,
                o.canonical_name AS object_name, o.entity_type AS object_type
@@ -217,17 +216,32 @@ def list_relations(
     query += " ORDER BY r.review_status, s.canonical_name, r.predicate, o.canonical_name"
     with database.connect() as connection:
         relations = connection.execute(query, parameters).fetchall()
+        relation_evidence = {
+            int(relation["id"]): [
+                item["evidence_id"] for item in connection.execute(
+                    "SELECT evidence_id FROM relation_evidence WHERE relation_id = ? "
+                    "ORDER BY evidence_id",
+                    (relation["id"],),
+                ).fetchall()
+            ]
+            for relation in relations
+        }
+        requested_evidence_ids = [
+            evidence_id
+            for evidence in relation_evidence.values()
+            for evidence_id in evidence
+        ]
+        rows_by_evidence = {
+            item["evidence_id"]: item
+            for item in database.retrieval_rows_by_evidence_ids(requested_evidence_ids)
+        }
         output = []
         for relation in relations:
             if int(relation["id"]) in stale_ids:
                 continue
-            evidence_rows = connection.execute(
-                "SELECT evidence_id FROM relation_evidence WHERE relation_id = ? ORDER BY evidence_id",
-                (relation["id"],),
-            ).fetchall()
             citations = []
-            for evidence_row in evidence_rows:
-                evidence = rows_by_evidence.get(evidence_row["evidence_id"])
+            for evidence_id in relation_evidence[int(relation["id"])]:
+                evidence = rows_by_evidence.get(evidence_id)
                 if evidence:
                     citations.append({
                         "evidence_id": evidence["evidence_id"], "quote": evidence["text"],

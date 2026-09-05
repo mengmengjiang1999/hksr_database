@@ -577,12 +577,54 @@ class Database:
             ).fetchall()
         return [int(row["chunk_id"]) for row in rows]
 
+    def evidence_ids(self) -> set[str]:
+        """Return current evidence identifiers without loading texts or vectors."""
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT s.provider || ':' || s.external_id || ':' ||
+                       d.document_key || ':' || c.chunk_key AS evidence_id
+                FROM chunks c
+                JOIN documents d ON d.id = c.document_id
+                JOIN sources s ON s.id = d.source_id
+                WHERE d.evidence_eligible = 1 AND s.status = 'parsed'
+                """
+            ).fetchall()
+        return {str(row["evidence_id"]) for row in rows}
+
+    def retrieval_rows_by_evidence_ids(
+        self, evidence_ids: Sequence[str]
+    ) -> List[Dict[str, Any]]:
+        """Load only rows addressed by stable evidence identifiers."""
+        selected_ids = list(dict.fromkeys(str(item) for item in evidence_ids if str(item)))
+        if not selected_ids:
+            return []
+        chunk_ids: List[int] = []
+        with self.connect() as connection:
+            for offset in range(0, len(selected_ids), 400):
+                batch = selected_ids[offset : offset + 400]
+                placeholders = ",".join("?" for _ in batch)
+                rows = connection.execute(
+                    """
+                    SELECT c.id AS chunk_id
+                    FROM chunks c
+                    JOIN documents d ON d.id = c.document_id
+                    JOIN sources s ON s.id = d.source_id
+                    WHERE d.evidence_eligible = 1 AND s.status = 'parsed'
+                      AND s.provider || ':' || s.external_id || ':' ||
+                          d.document_key || ':' || c.chunk_key IN (%s)
+                    """ % placeholders,
+                    batch,
+                ).fetchall()
+                chunk_ids.extend(int(row["chunk_id"]) for row in rows)
+        return self.retrieval_rows(chunk_ids)
+
     def evidence_context(self, evidence_id: str, window: int = 1) -> Dict[str, Any]:
         """Return one evidence item plus neighbouring chunks in its document."""
         if window < 0:
             raise ValueError("Context window cannot be negative")
-        rows = self.retrieval_rows()
-        target = next((row for row in rows if row["evidence_id"] == evidence_id), None)
+        rows = self.retrieval_rows_by_evidence_ids([evidence_id])
+        target = rows[0] if rows else None
         if target is None:
             raise KeyError("Unknown evidence id: %s" % evidence_id)
         with self.connect() as connection:

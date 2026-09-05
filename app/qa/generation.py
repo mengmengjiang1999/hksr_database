@@ -231,7 +231,15 @@ class GenerationService:
             return self._fallback(fallback, "invalid_schema")
         if not validation["accepted"]:
             return self._fallback(fallback, "empty_validation")
-        rows = {row["evidence_id"]: row for row in database.retrieval_rows()}
+        evidence_ids = list(dict.fromkeys(
+            item["evidence_id"]
+            for claim in validation["accepted"]
+            for item in claim["supports"]
+        ))
+        rows = {
+            row["evidence_id"]: row
+            for row in database.retrieval_rows_by_evidence_ids(evidence_ids)
+        }
         claims = []
         for claim in validation["accepted"]:
             evidence_ids = list(dict.fromkeys(item["evidence_id"] for item in claim["supports"]))

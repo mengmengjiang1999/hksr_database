@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from fastapi.testclient import TestClient
 
@@ -131,6 +132,17 @@ class ApiTests(unittest.TestCase):
         relations = [relation for group in payload["related_entities"] for relation in group["relations"]]
         self.assertTrue(relations)
         self.assertTrue(all(item["review_status"] == "approved" for item in relations))
+
+    def test_ask_never_loads_unbounded_retrieval_rows(self) -> None:
+        database = self.client.app.state.database
+        with mock.patch.object(
+            database, "retrieval_rows", wraps=database.retrieval_rows
+        ) as retrieval_rows:
+            response = self.client.post("/api/ask", json={"question": "小三月保持了什么？"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(retrieval_rows.call_args_list)
+        self.assertTrue(all(call.args and call.args[0] is not None
+                            for call in retrieval_rows.call_args_list))
 
     def test_optional_generation_success_and_fallback_are_api_compatible(self) -> None:
         evidence = Database(self.database_path).retrieval_rows()[0]

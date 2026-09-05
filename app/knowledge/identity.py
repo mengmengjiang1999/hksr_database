@@ -82,7 +82,7 @@ def replace_identity_catalog(database: Database, path: Path) -> Dict[str, Any]:
     payload = load_identity_catalog(path)
     version = int(payload["schema_version"])
     database.initialize()
-    evidence_ids = {row["evidence_id"] for row in database.retrieval_rows()}
+    evidence_ids = database.evidence_ids()
     for person in payload["people"]:
         names = list(person.get("names") or [])
         for form in person.get("playable_forms") or []:
@@ -194,7 +194,7 @@ def _replace_names(
 
 def audit_identity_catalog(database: Database) -> Dict[str, Any]:
     database.initialize()
-    valid_evidence = {row["evidence_id"] for row in database.retrieval_rows()}
+    valid_evidence = database.evidence_ids()
     errors: List[str] = []
     with database.connect() as connection:
         people = [dict(row) for row in connection.execute(

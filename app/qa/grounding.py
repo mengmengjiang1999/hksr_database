@@ -225,7 +225,10 @@ def _base_metadata(plan: Mapping[str, Any], strategy: str) -> Dict[str, Any]:
 def _structured_claim(
     database: Database, text: str, evidence_ids: Sequence[str], support_check: str,
 ) -> Optional[Dict[str, Any]]:
-    rows = {row["evidence_id"]: row for row in database.retrieval_rows()}
+    rows = {
+        row["evidence_id"]: row
+        for row in database.retrieval_rows_by_evidence_ids(evidence_ids)
+    }
     evidence = [rows[item] for item in _unique_strings(evidence_ids) if item in rows]
     if not evidence:
         return None
