@@ -94,6 +94,13 @@ class RetrievalTests(unittest.TestCase):
         self.assertTrue(candidate_ids)
         self.assertLessEqual(len(candidate_ids), 500)
 
+    def test_retrieval_metadata_is_cached_until_index_replacement(self) -> None:
+        expected = self.database.retrieval_metadata()
+        with mock.patch("app.models.database.json.loads", side_effect=AssertionError):
+            self.assertIs(self.database.retrieval_metadata(), expected)
+        build_retrieval_index(self.database, self.entities)
+        self.assertEqual(self.database.retrieval_metadata()["document_count"], 3)
+
     def test_evaluator_reports_top_k(self) -> None:
         dataset = self.root / "evaluation.json"
         dataset.write_text(json.dumps({"cases": [

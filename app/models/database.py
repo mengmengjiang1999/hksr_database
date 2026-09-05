@@ -267,6 +267,18 @@ def stable_evidence_id(
 class Database:
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
+        self._retrieval_metadata_cache: Optional[Dict[str, Any]] = None
+        self._retrieval_metadata_signature: Optional[tuple[tuple[int, int], ...]] = None
+
+    def _storage_signature(self) -> tuple[tuple[int, int], ...]:
+        signature = []
+        for path in (self.path, Path(str(self.path) + "-wal")):
+            try:
+                stat = path.stat()
+                signature.append((stat.st_mtime_ns, stat.st_size))
+            except FileNotFoundError:
+                signature.append((0, 0))
+        return tuple(signature)
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -484,6 +496,8 @@ class Database:
                 "INSERT OR REPLACE INTO retrieval_metadata (key, value_json) VALUES ('semantic', ?)",
                 (json.dumps(metadata, ensure_ascii=False),),
             )
+        self._retrieval_metadata_cache = None
+        self._retrieval_metadata_signature = None
         return len(vectors)
 
     def retrieval_rows(
@@ -661,11 +675,20 @@ class Database:
 
     def retrieval_metadata(self) -> Dict[str, Any]:
         self.initialize()
+        signature = self._storage_signature()
+        if (
+            self._retrieval_metadata_cache is not None
+            and self._retrieval_metadata_signature == signature
+        ):
+            return self._retrieval_metadata_cache
         with self.connect() as connection:
             row = connection.execute(
                 "SELECT value_json FROM retrieval_metadata WHERE key = 'semantic'"
             ).fetchone()
-        return json.loads(row["value_json"]) if row else {}
+        metadata = json.loads(row["value_json"]) if row else {}
+        self._retrieval_metadata_cache = metadata
+        self._retrieval_metadata_signature = self._storage_signature()
+        return metadata
 
     def upsert_source(self, source: Mapping[str, Any]) -> int:
         return self.upsert_sources([source])[0]
