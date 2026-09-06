@@ -212,6 +212,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Import the current official SQLite corpus into PostgreSQL",
     )
     cloud_import.add_argument("--batch-id", required=True)
+    cloud_import.add_argument("--commit-interval", type=int, default=500)
     cloud_import.add_argument("--allow-mutation", action="store_true")
     cloud_import.add_argument("--output", type=Path)
 
@@ -587,6 +588,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 sqlite_path=arguments.database,
                 batch_id=arguments.batch_id,
                 allow_mutation=arguments.allow_mutation,
+                commit_interval=arguments.commit_interval,
             )
         elif arguments.command == "cloud-load-fixture":
             result = load_fixture(

@@ -11,6 +11,7 @@ report_dir=${HKSR_M7_REPORT_DIR:-data/m7/runs}
 daily_budget=${HKSR_M7_DAILY_BUDGET:-60}
 rds_sync_attempts=${HKSR_M7_RDS_SYNC_ATTEMPTS:-3}
 rds_sync_retry_delay=${HKSR_M7_RDS_SYNC_RETRY_DELAY:-15}
+rds_commit_interval=${HKSR_M7_RDS_COMMIT_INTERVAL:-500}
 rds_file=${XDG_CONFIG_HOME:-${HOME}/.config}/hksr/rds.dsn
 
 . "$(dirname "$0")/m7-rds-sync.sh"
@@ -32,6 +33,13 @@ esac
 case "$rds_sync_retry_delay" in
   ''|*[!0-9]*)
     echo "HKSR_M7_RDS_SYNC_RETRY_DELAY must be a non-negative integer" >&2
+    exit 2
+    ;;
+esac
+
+case "$rds_commit_interval" in
+  ''|*[!0-9]*|0)
+    echo "HKSR_M7_RDS_COMMIT_INTERVAL must be a positive integer" >&2
     exit 2
     ;;
 esac
@@ -61,6 +69,7 @@ sync_rds() {
   retry_with_backoff "$rds_sync_attempts" "$rds_sync_retry_delay" \
     .venv/bin/python -m app.cli --database "$database_path" cloud-import-sqlite \
       --batch-id "m7-real-wiki-${stamp}-${label}" --allow-mutation \
+      --commit-interval "$rds_commit_interval" \
       --output "$report_dir/wiki-rds-${label}-${stamp}.json"
 }
 

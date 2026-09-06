@@ -415,17 +415,44 @@ def _validated_json_text(value: Any, *, field: str) -> str:
     return json.dumps(parsed, ensure_ascii=False, sort_keys=True)
 
 
+class _TransactionBatcher:
+    """Bound PostgreSQL transaction size for idempotent snapshot upserts."""
+
+    def __init__(self, connection: Any, commit_interval: int) -> None:
+        if commit_interval <= 0:
+            raise ValueError("commit_interval must be a positive integer")
+        self.connection = connection
+        self.commit_interval = commit_interval
+        self.pending_writes = 0
+        self.commits = 0
+
+    def record_write(self) -> None:
+        self.pending_writes += 1
+        if self.pending_writes >= self.commit_interval:
+            self.flush()
+
+    def flush(self) -> None:
+        if not self.pending_writes:
+            return
+        self.connection.commit()
+        self.pending_writes = 0
+        self.commits += 1
+
+
 def import_official_sqlite(
     config: CloudDatabaseConfig,
     *,
     sqlite_path: Path,
     batch_id: str,
     allow_mutation: bool,
+    commit_interval: int = 500,
 ) -> Dict[str, Any]:
     """Upsert one real, official SQLite snapshot into the PostgreSQL schema."""
     validate_real_batch_id(batch_id)
     if not allow_mutation:
         raise PermissionError("Real evidence import requires allow_mutation=True")
+    if commit_interval <= 0:
+        raise ValueError("commit_interval must be a positive integer")
     snapshot = read_official_sqlite_snapshot(sqlite_path)
     tables = snapshot["tables"]
     source_ids: Dict[int, int] = {}
@@ -436,6 +463,7 @@ def import_official_sqlite(
     started = time.perf_counter()
 
     with _connect(config) as connection:
+        batcher = _TransactionBatcher(connection, commit_interval)
         existing_batch = connection.execute(
             "SELECT source_fingerprint FROM hksr.import_batches WHERE batch_id = %s",
             (batch_id,),
@@ -449,6 +477,8 @@ def import_official_sqlite(
         connection.execute("DELETE FROM hksr.relation_evidence")
         connection.execute("DELETE FROM hksr.entity_chunks")
         connection.execute("DELETE FROM hksr.aliases")
+        connection.commit()
+        batcher.commits += 1
 
         for row in tables["sources"]:
             metadata = json.dumps({
@@ -486,6 +516,8 @@ def import_official_sqlite(
                 ),
             ).fetchone()[0]
             source_ids[int(row["id"])] = int(postgres_id)
+            batcher.record_write()
+        batcher.flush()
 
         for row in tables["documents"]:
             postgres_id = connection.execute(
@@ -509,6 +541,8 @@ def import_official_sqlite(
                 ),
             ).fetchone()[0]
             document_ids[int(row["id"])] = int(postgres_id)
+            batcher.record_write()
+        batcher.flush()
 
         source_by_id = {int(row["id"]): row for row in tables["sources"]}
         document_by_id = {int(row["id"]): row for row in tables["documents"]}
@@ -545,6 +579,8 @@ def import_official_sqlite(
                 ),
             ).fetchone()[0]
             chunk_ids[int(row["id"])] = int(postgres_id)
+            batcher.record_write()
+        batcher.flush()
 
         for row in tables["entities"]:
             postgres_id = connection.execute(
@@ -557,6 +593,8 @@ def import_official_sqlite(
                 (row["canonical_name"], row["entity_type"], row["description"]),
             ).fetchone()[0]
             entity_ids[int(row["id"])] = int(postgres_id)
+            batcher.record_write()
+        batcher.flush()
 
         for row in tables["aliases"]:
             connection.execute(
@@ -566,6 +604,8 @@ def import_official_sqlite(
                      alias_type = EXCLUDED.alias_type""",
                 (entity_ids[int(row["entity_id"])], row["alias"], row["alias_type"]),
             )
+            batcher.record_write()
+        batcher.flush()
 
         for row in tables["entity_chunks"]:
             connection.execute(
@@ -578,6 +618,8 @@ def import_official_sqlite(
                     row["matched_text"],
                 ),
             )
+            batcher.record_write()
+        batcher.flush()
 
         for row in tables["relations"]:
             postgres_id = connection.execute(
@@ -600,6 +642,8 @@ def import_official_sqlite(
                 ),
             ).fetchone()[0]
             relation_ids[int(row["id"])] = int(postgres_id)
+            batcher.record_write()
+        batcher.flush()
 
         valid_evidence_ids = set(snapshot["evidence_ids"])
         for row in tables["relation_evidence"]:
@@ -614,6 +658,8 @@ def import_official_sqlite(
                     relation_ids[int(row["relation_id"])], row["evidence_id"], row["note"],
                 ),
             )
+            batcher.record_write()
+        batcher.flush()
 
         for row in tables["retrieval_metadata"]:
             connection.execute(
@@ -628,6 +674,8 @@ def import_official_sqlite(
                     ),
                 ),
             )
+            batcher.record_write()
+        batcher.flush()
 
         expected = {
             key: int(snapshot["counts"][key]) for key in (
@@ -652,7 +700,8 @@ def import_official_sqlite(
                 connection.execute("DELETE FROM hksr.%s" % table)
 
         # Remove superseded rows only after their replacements and evidence links
-        # are present. Any failure rolls the whole reconciliation transaction back.
+        # are present. Pruning, count validation, and the acceptance marker remain
+        # one transaction; preceding idempotent batches are safe to replay.
         prune_missing("relations", relation_ids.values())
         prune_missing("chunks", chunk_ids.values())
         prune_missing("documents", document_ids.values())
@@ -707,6 +756,8 @@ def import_official_sqlite(
         "local_sparse_vectors_deferred": int(snapshot["counts"]["chunk_vectors"]),
         "synthetic_rows_imported": 0,
         "repeated_batch": bool(existing_batch),
+        "commit_interval": commit_interval,
+        "transaction_commits": batcher.commits + 1,
         "wiki_catalog": wiki_catalog,
         "duration_seconds": round(time.perf_counter() - started, 3),
     }

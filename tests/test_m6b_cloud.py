@@ -6,6 +6,7 @@ from pathlib import Path
 from app.cli import build_parser
 from app.cloud.validation import (
     CloudDatabaseConfig,
+    _TransactionBatcher,
     _m6a_estimate,
     build_acceptance_report,
     deterministic_vector,
@@ -162,6 +163,29 @@ class CloudConfigurationTests(unittest.TestCase):
 
 
 class MigrationAndFixtureTests(unittest.TestCase):
+    def test_transaction_batcher_bounds_commits_and_flushes_remainder(self) -> None:
+        class Connection:
+            def __init__(self) -> None:
+                self.commits = 0
+
+            def commit(self) -> None:
+                self.commits += 1
+
+        connection = Connection()
+        batcher = _TransactionBatcher(connection, 2)
+        batcher.record_write()
+        self.assertEqual(connection.commits, 0)
+        batcher.record_write()
+        self.assertEqual(connection.commits, 1)
+        batcher.record_write()
+        batcher.flush()
+        batcher.flush()
+        self.assertEqual(connection.commits, 2)
+        self.assertEqual(batcher.commits, 2)
+
+        with self.assertRaisesRegex(ValueError, "positive integer"):
+            _TransactionBatcher(connection, 0)
+
     def test_migrations_are_versioned_idempotent_and_scoped(self) -> None:
         files = migration_files()
         self.assertEqual(
@@ -295,6 +319,7 @@ class RetrievalMetricTests(unittest.TestCase):
             "cloud-import-sqlite", "--batch-id", "m6b-real-initial-20260903"
         ])
         self.assertEqual(imported.database, Path("data/database/hksr.sqlite3"))
+        self.assertEqual(imported.commit_interval, 500)
         self.assertFalse(imported.allow_mutation)
         acceptance = parser.parse_args(["cloud-acceptance-report"])
         self.assertFalse(hasattr(acceptance, "dsn"))

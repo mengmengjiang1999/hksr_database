@@ -55,6 +55,12 @@ class M7DeploymentScriptTests(unittest.TestCase):
             script,
         )
 
+    def test_rds_import_uses_bounded_commit_intervals(self):
+        script = OVERNIGHT.read_text(encoding="utf-8")
+
+        self.assertIn("HKSR_M7_RDS_COMMIT_INTERVAL:-500", script)
+        self.assertIn('--commit-interval "$rds_commit_interval"', script)
+
     def test_deployment_scripts_have_valid_bash_syntax(self):
         for path in (HELPER, OVERNIGHT):
             result = subprocess.run(
