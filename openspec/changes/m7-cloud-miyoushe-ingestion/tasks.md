@@ -25,29 +25,29 @@
 - [x] 4.1 Deploy the tested collector revision to ECS and verify that the production runbook launches the ordinary collection commands from the cloud working directory without an activation flag or host-specific marker.
 - [x] 4.2 Attach a least-privilege ECS RAM role limited to the designated private OSS M7 prefix and verify it with one non-sensitive probe object.
 - [x] 4.3 Run exactly one ECS discovery pilot of at most two 20-item pages and record cursor, pacing, official verification, and disposition totals.
-- [ ] 4.4 Run exactly one ECS body-fetch pilot of at most ten posts, persist raw hashes to OSS, parse eligible items, and reconcile the pilot batch into RDS twice without duplicates.
-- [ ] 4.5 Review M7A categories, empty text, video subtitle availability, parser failures, rate-limit signals, and reports before authorizing M7B.
+- [x] 4.4 Run exactly one ECS body-fetch pilot of at most ten posts, persist raw hashes to OSS, parse eligible items, and reconcile the pilot batch into RDS twice without duplicates.
+- [x] 4.5 Review M7A categories, empty text, video subtitle availability, parser failures, rate-limit signals, and reports before authorizing M7B.
 
 ## 5. M7B slow complete inventory and ingestion
 
-- [ ] 5.1 Execute each remaining metadata discovery invocation on ECS with at most two pages, stopping for a report review after every invocation.
-- [ ] 5.2 Execute body fetching on ECS in batches of at most ten posts, never exceeding the shared daily request budget, and stop immediately when the circuit breaker opens.
-- [ ] 5.3 After every reviewed fetch batch, parse only eligible items, upload raw snapshots, reconcile one named M7 batch into RDS, repeat it once, and verify count stability.
-- [ ] 5.4 Continue the recorded small-batch loop across separate runs until the upstream official listing reaches its terminal cursor; do not infer completion from an expected item count.
-- [ ] 5.5 Resolve or explicitly retain every manual-review item and verify that all discovered items have a final or review disposition with no unverified evidence rows.
+- [x] 5.1 Execute each remaining metadata discovery invocation on ECS with at most two pages, stopping for a report review after every invocation.
+- [x] 5.2 Execute body fetching on ECS in batches of at most ten posts, never exceeding the shared daily request budget, and stop immediately when the circuit breaker opens.
+- [x] 5.3 After each reviewed fetch batch, parse only eligible items and upload raw snapshots; reconcile named periodic groups and the final M7 batch into RDS, repeat the final batch once, and verify count stability.
+- [x] 5.4 Continue the recorded small-batch loop across separate runs until the upstream official listing reaches its terminal cursor; do not infer completion from an expected item count.
+- [x] 5.5 Resolve or explicitly retain every manual-review item and verify that all discovered items have a final or review disposition with no unverified evidence rows.
 
 ## 6. M7C acceptance and controlled incrementals
 
-- [ ] 6.1 Rebuild ECS-local indexes, sample lore-related retrieval traceability, and compare eligible SQLite staging counts with the final RDS audit.
+- [x] 6.1 Rebuild ECS-local indexes, sample lore-related retrieval traceability, and compare eligible SQLite staging counts with the final RDS audit.
 - [ ] 6.2 Run three manually initiated no-change incremental checks and verify stable cursors, hashes, evidence IDs, row counts, and request-budget behavior.
 - [x] 6.3 Add systemd oneshot and timer units with locking and journal logging, install them on ECS, and confirm the recurring timer remains disabled.
-- [ ] 6.4 Produce sanitized JSON and Markdown completion reports covering inventory, dispositions, pacing, retries, OSS persistence, RDS batches, exclusions, and unresolved items.
-- [ ] 6.5 Run the full local offline test suite, full ECS test suite, strict OpenSpec validation, and secret scan; enable recurring collection only after separate explicit user approval.
+- [x] 6.4 Produce sanitized JSON and Markdown completion reports covering inventory, dispositions, pacing, retries, OSS persistence, RDS batches, exclusions, and unresolved items.
+- [x] 6.5 Run the full local offline test suite, full ECS test suite, strict OpenSpec validation, and secret scan; enable recurring collection only after separate explicit user approval.
 
 ## 7. Complete Wiki game-catalog ingestion
 
 - [x] 7.1 Implement official Wiki `游戏图鉴` directory discovery with stable detail URLs, deterministic source kinds, and cross-channel `content_id` deduplication.
 - [x] 7.2 Add deterministic tests for catalog coverage, achievement inclusion, guide exclusion, duplicate IDs, task categories, malformed responses, and idempotent rediscovery.
 - [x] 7.3 Deploy the catalog discovery command to ECS, register the current unique Wiki access list, and verify the observed and deduplicated counts without interrupting the official-account collector.
-- [ ] 7.4 Fetch and privately persist every queued Wiki detail on ECS with bounded pacing, restartable state, parsing, and sanitized progress reports.
+- [x] 7.4 Fetch and privately persist every queued Wiki detail on ECS with bounded pacing, restartable state, parsing, and sanitized progress reports.
 - [x] 7.5 Reconcile parsed Wiki evidence into RDS, verify category and unique-ID totals, and add the Wiki catalog to controlled incremental synchronization.

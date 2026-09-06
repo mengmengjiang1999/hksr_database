@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-06T04:17:28Z",
+  "status": "pending_one_no_change_incremental_check",
+  "inventory": {
+    "sources": 7831,
+    "providers": {
+      "mihoyo_wiki": 5292,
+      "miyoushe": 2539
+    },
+    "source_statuses": {
+      "fetched": 11,
+      "parsed": 5647,
+      "skipped": 2173
+    },
+    "documents": 6695,
+    "evidence_chunks": 20276,
+    "semantic_vectors": 20276
+  },
+  "dispositions": {
+    "eligible_evidence": 5647,
+    "excluded_operational": 11,
+    "excluded_unavailable": 2173,
+    "manual_review": 0,
+    "unverified_evidence": 0,
+    "coverage_matches_source_inventory": true
+  },
+  "wiki_catalog": {
+    "unique_content_ids": 5292,
+    "categories": {
+      "wiki_achievement": 682,
+      "wiki_character": 98,
+      "wiki_collectible": 8,
+      "wiki_consumable": 290,
+      "wiki_dreamscape_pass": 18,
+      "wiki_endgame": 650,
+      "wiki_enemy": 226,
+      "wiki_event": 136,
+      "wiki_furniture": 64,
+      "wiki_light_cone": 168,
+      "wiki_material": 195,
+      "wiki_outfit": 166,
+      "wiki_periodical": 93,
+      "wiki_quest": 686,
+      "wiki_quest_item": 509,
+      "wiki_readable": 652,
+      "wiki_relic": 60,
+      "wiki_shop": 17,
+      "wiki_simulated_universe": 128,
+      "wiki_special_item": 137,
+      "wiki_valuable": 309
+    }
+  },
+  "raw_persistence": {
+    "objects": 5653,
+    "unique_hashes": 5653,
+    "bytes": 220117596,
+    "private_oss_required_before_fetched_state": true
+  },
+  "official_account_checkpoint": {
+    "terminal": true,
+    "observed_items": 2539,
+    "terminal_condition_recorded": true
+  },
+  "incremental_acceptance": {
+    "required_no_change_runs": 3,
+    "completed_no_change_runs": 2,
+    "successful_real_update_runs": 2,
+    "new_official_posts_ingested": 4,
+    "wiki_pages_rechecked": 40,
+    "wiki_pages_changed": 0,
+    "retries_in_reviewed_runs": 0,
+    "daily_requests_used": 50,
+    "daily_request_limit": 60,
+    "timer_enabled": false
+  },
+  "rds_reconciliation": {
+    "same_batch_imported_twice": true,
+    "second_import_marked_repeated": true,
+    "counts_match": true,
+    "wiki_counts_match": true,
+    "stable_evidence_ids_unique": true,
+    "synthetic_rows_imported": 0,
+    "transaction_commits": 138,
+    "connection_rotations": 8,
+    "observed_counts": {
+      "sources": 7831,
+      "documents": 6695,
+      "chunks": 20276,
+      "official_evidence": 20276,
+      "entities": 36,
+      "aliases": 47,
+      "relations": 486
+    }
+  },
+  "retrieval_traceability": {
+    "sample_queries": 3,
+    "results_per_query": 3,
+    "all_results_have_evidence_id_and_page_url": true,
+    "wiki_is_primary_in_samples": true
+  },
+  "verification": {
+    "local_tests": {
+      "passed": 120,
+      "skipped": 1
+    },
+    "ecs_full_tests": {
+      "passed": 116
+    },
+    "openspec_strict_validation": "passed",
+    "secret_scan": "passed_with_test_fixture_matches_only",
+    "application_health": "ok"
+  },
+  "remaining_gates": [
+    "Run one additional manually initiated no-change incremental check after the UTC request budget resets.",
+    "Keep the recurring timer disabled until separate explicit user approval."
+  ]
+}
