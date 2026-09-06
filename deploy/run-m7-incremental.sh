@@ -42,8 +42,19 @@ if test "$refresh_start" -eq 1; then
 fi
 .venv/bin/python -m app.cli --database "$database_path" m7-wiki-refresh \
   "${refresh_args[@]}" --output "$report_dir/wiki-refresh-$run_stamp.json"
-.venv/bin/python -m app.cli --database "$database_path" parse
-.venv/bin/python -m app.cli --database "$database_path" initialize
+parse_report="$report_dir/parse-$run_stamp.json"
+index_report="$report_dir/index-$run_stamp.json"
+.venv/bin/python -m app.cli --database "$database_path" parse > "$parse_report"
+parsed_count=$(.venv/bin/python -c \
+  'import json, sys; print(int(json.load(open(sys.argv[1], encoding="utf-8")).get("parsed", 0)))' \
+  "$parse_report")
+if test "$parsed_count" -gt 0; then
+  .venv/bin/python -m app.cli --database "$database_path" initialize > "$index_report"
+else
+  .venv/bin/python -c \
+    'import json, sys; from pathlib import Path; Path(sys.argv[1]).write_text(json.dumps({"skipped": True, "reason": "no_newly_parsed_sources"}, sort_keys=True) + "\n", encoding="utf-8")' \
+    "$index_report"
+fi
 .venv/bin/python -m app.cli --database "$database_path" cloud-import-sqlite \
   --batch-id "m7-real-incremental-$run_stamp" \
   --allow-mutation \

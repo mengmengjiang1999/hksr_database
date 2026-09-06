@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HELPER = ROOT / "deploy" / "m7-rds-sync.sh"
 OVERNIGHT = ROOT / "deploy" / "run-m7-wiki-overnight.sh"
+INCREMENTAL = ROOT / "deploy" / "run-m7-incremental.sh"
 
 
 class M7DeploymentScriptTests(unittest.TestCase):
@@ -61,8 +62,15 @@ class M7DeploymentScriptTests(unittest.TestCase):
         self.assertIn("HKSR_M7_RDS_COMMIT_INTERVAL:-500", script)
         self.assertIn('--commit-interval "$rds_commit_interval"', script)
 
+    def test_incremental_rebuilds_index_only_after_new_parse_results(self):
+        script = INCREMENTAL.read_text(encoding="utf-8")
+
+        self.assertIn('parse > "$parse_report"', script)
+        self.assertIn('if test "$parsed_count" -gt 0; then', script)
+        self.assertIn('no_newly_parsed_sources', script)
+
     def test_deployment_scripts_have_valid_bash_syntax(self):
-        for path in (HELPER, OVERNIGHT):
+        for path in (HELPER, OVERNIGHT, INCREMENTAL):
             result = subprocess.run(
                 ["bash", "-n", str(path)],
                 text=True,
