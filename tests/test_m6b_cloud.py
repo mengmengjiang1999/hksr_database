@@ -183,6 +183,17 @@ class MigrationAndFixtureTests(unittest.TestCase):
         self.assertEqual(connection.commits, 2)
         self.assertEqual(batcher.commits, 2)
 
+        replacement = Connection()
+        batcher.record_write()
+        with self.assertRaisesRegex(RuntimeError, "flush pending writes"):
+            batcher.replace_connection(replacement)
+        batcher.flush()
+        batcher.replace_connection(replacement)
+        batcher.record_write()
+        batcher.flush()
+        self.assertEqual(replacement.commits, 1)
+        self.assertEqual(batcher.connection_rotations, 1)
+
         with self.assertRaisesRegex(ValueError, "positive integer"):
             _TransactionBatcher(connection, 0)
 
@@ -288,10 +299,23 @@ class MigrationAndFixtureTests(unittest.TestCase):
                 )
 
             first = read_official_sqlite_snapshot(path)
+            with database.connect() as connection:
+                connection.execute(
+                    "UPDATE chunk_vectors SET vector_json = ? WHERE chunk_id = 1",
+                    ('{"本地缓存": 2.0}',),
+                )
+                connection.execute(
+                    "UPDATE retrieval_metadata SET value_json = ? WHERE key = 'vectorizer'",
+                    ('{"version": 2}',),
+                )
             second = read_official_sqlite_snapshot(path)
             self.assertEqual(first["source_fingerprint"], second["source_fingerprint"])
             self.assertEqual(first["counts"]["sources"], 1)
             self.assertEqual(first["counts"]["official_evidence"], 1)
+            self.assertEqual(first["counts"]["chunk_vectors"], 1)
+            self.assertEqual(first["counts"]["retrieval_metadata"], 1)
+            self.assertNotIn("chunk_vectors", first["tables"])
+            self.assertNotIn("retrieval_metadata", first["tables"])
             self.assertEqual(first["evidence_ids"], [evidence_id])
 
     def test_m6a_estimate_is_loaded_by_chunk_scenario(self) -> None:

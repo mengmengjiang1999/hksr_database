@@ -337,8 +337,9 @@ def stable_postgres_evidence_id(
 
 SQLITE_IMPORT_TABLES = (
     "sources", "documents", "chunks", "entities", "aliases", "entity_chunks",
-    "chunk_vectors", "retrieval_metadata", "relations", "relation_evidence",
+    "relations", "relation_evidence",
 )
+SQLITE_DEFERRED_RETRIEVAL_TABLES = ("chunk_vectors", "retrieval_metadata")
 
 
 def read_official_sqlite_snapshot(path: Path) -> Dict[str, Any]:
@@ -355,7 +356,8 @@ def read_official_sqlite_snapshot(path: Path) -> Dict[str, Any]:
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )
         }
-        missing = [table for table in SQLITE_IMPORT_TABLES if table not in available]
+        required = SQLITE_IMPORT_TABLES + SQLITE_DEFERRED_RETRIEVAL_TABLES
+        missing = [table for table in required if table not in available]
         if missing:
             raise ValueError("SQLite evidence database is missing required tables")
         chunk_columns = {
@@ -371,6 +373,12 @@ def read_official_sqlite_snapshot(path: Path) -> Dict[str, Any]:
         for table in SQLITE_IMPORT_TABLES:
             rows = connection.execute("SELECT * FROM %s ORDER BY rowid" % table).fetchall()
             tables[table] = [dict(row) for row in rows]
+        deferred_counts = {
+            table: int(connection.execute(
+                "SELECT count(*) FROM %s" % table
+            ).fetchone()[0])
+            for table in SQLITE_DEFERRED_RETRIEVAL_TABLES
+        }
     finally:
         connection.close()
 
@@ -397,6 +405,7 @@ def read_official_sqlite_snapshot(path: Path) -> Dict[str, Any]:
         tables, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     counts = {table: len(rows) for table, rows in tables.items()}
+    counts.update(deferred_counts)
     counts["official_evidence"] = eligible_chunks
     return {
         "tables": tables,
@@ -425,6 +434,7 @@ class _TransactionBatcher:
         self.commit_interval = commit_interval
         self.pending_writes = 0
         self.commits = 0
+        self.connection_rotations = 0
 
     def record_write(self) -> None:
         self.pending_writes += 1
@@ -437,6 +447,12 @@ class _TransactionBatcher:
         self.connection.commit()
         self.pending_writes = 0
         self.commits += 1
+
+    def replace_connection(self, connection: Any) -> None:
+        if self.pending_writes:
+            raise RuntimeError("flush pending writes before replacing the connection")
+        self.connection = connection
+        self.connection_rotations += 1
 
 
 def import_official_sqlite(
@@ -462,8 +478,17 @@ def import_official_sqlite(
     relation_ids: Dict[int, int] = {}
     started = time.perf_counter()
 
-    with _connect(config) as connection:
+    connection = _connect(config)
+    try:
         batcher = _TransactionBatcher(connection, commit_interval)
+
+        def rotate_connection() -> None:
+            nonlocal connection
+            batcher.flush()
+            connection.close()
+            connection = _connect(config)
+            batcher.replace_connection(connection)
+
         existing_batch = connection.execute(
             "SELECT source_fingerprint FROM hksr.import_batches WHERE batch_id = %s",
             (batch_id,),
@@ -517,7 +542,7 @@ def import_official_sqlite(
             ).fetchone()[0]
             source_ids[int(row["id"])] = int(postgres_id)
             batcher.record_write()
-        batcher.flush()
+        rotate_connection()
 
         for row in tables["documents"]:
             postgres_id = connection.execute(
@@ -542,7 +567,7 @@ def import_official_sqlite(
             ).fetchone()[0]
             document_ids[int(row["id"])] = int(postgres_id)
             batcher.record_write()
-        batcher.flush()
+        rotate_connection()
 
         source_by_id = {int(row["id"]): row for row in tables["sources"]}
         document_by_id = {int(row["id"]): row for row in tables["documents"]}
@@ -580,7 +605,7 @@ def import_official_sqlite(
             ).fetchone()[0]
             chunk_ids[int(row["id"])] = int(postgres_id)
             batcher.record_write()
-        batcher.flush()
+        rotate_connection()
 
         for row in tables["entities"]:
             postgres_id = connection.execute(
@@ -594,7 +619,7 @@ def import_official_sqlite(
             ).fetchone()[0]
             entity_ids[int(row["id"])] = int(postgres_id)
             batcher.record_write()
-        batcher.flush()
+        rotate_connection()
 
         for row in tables["aliases"]:
             connection.execute(
@@ -605,7 +630,7 @@ def import_official_sqlite(
                 (entity_ids[int(row["entity_id"])], row["alias"], row["alias_type"]),
             )
             batcher.record_write()
-        batcher.flush()
+        rotate_connection()
 
         for row in tables["entity_chunks"]:
             connection.execute(
@@ -619,7 +644,7 @@ def import_official_sqlite(
                 ),
             )
             batcher.record_write()
-        batcher.flush()
+        rotate_connection()
 
         for row in tables["relations"]:
             postgres_id = connection.execute(
@@ -643,7 +668,7 @@ def import_official_sqlite(
             ).fetchone()[0]
             relation_ids[int(row["id"])] = int(postgres_id)
             batcher.record_write()
-        batcher.flush()
+        rotate_connection()
 
         valid_evidence_ids = set(snapshot["evidence_ids"])
         for row in tables["relation_evidence"]:
@@ -659,22 +684,14 @@ def import_official_sqlite(
                 ),
             )
             batcher.record_write()
-        batcher.flush()
+        rotate_connection()
 
-        for row in tables["retrieval_metadata"]:
-            connection.execute(
-                """INSERT INTO hksr.ingestion_state(state_key, value)
-                   VALUES (%s,%s::jsonb)
-                   ON CONFLICT (state_key) DO UPDATE SET
-                     value = EXCLUDED.value, updated_at = now()""",
-                (
-                    "sqlite_retrieval_" + str(row["key"]),
-                    _validated_json_text(
-                        row["value_json"], field="retrieval_metadata.value_json"
-                    ),
-                ),
-            )
-            batcher.record_write()
+        # Sparse vectors and semantic metadata are SQLite-only caches. PostgreSQL
+        # uses its own retrieval indexes, so remove any legacy mirrored copies.
+        connection.execute(
+            "DELETE FROM hksr.ingestion_state WHERE state_key LIKE 'sqlite_retrieval_%'"
+        )
+        batcher.record_write()
         batcher.flush()
 
         expected = {
@@ -744,6 +761,10 @@ def import_official_sqlite(
                  counts = EXCLUDED.counts, imported_at = now()""",
             (batch_id, snapshot["source_fingerprint"], json.dumps(observed, sort_keys=True)),
         )
+        batcher.record_write()
+        batcher.flush()
+    finally:
+        connection.close()
 
     return {
         "batch_id": batch_id,
@@ -754,10 +775,14 @@ def import_official_sqlite(
         "stable_evidence_ids_unique": True,
         "dense_embeddings_imported": 0,
         "local_sparse_vectors_deferred": int(snapshot["counts"]["chunk_vectors"]),
+        "local_retrieval_metadata_deferred": int(
+            snapshot["counts"]["retrieval_metadata"]
+        ),
         "synthetic_rows_imported": 0,
         "repeated_batch": bool(existing_batch),
         "commit_interval": commit_interval,
-        "transaction_commits": batcher.commits + 1,
+        "transaction_commits": batcher.commits,
+        "connection_rotations": batcher.connection_rotations,
         "wiki_catalog": wiki_catalog,
         "duration_seconds": round(time.perf_counter() - started, 3),
     }
