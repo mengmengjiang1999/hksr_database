@@ -83,6 +83,15 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(first["entity_chunk_links"], second["entity_chunk_links"])
         self.assertEqual(first["semantic_vectors"], second["semantic_vectors"])
 
+    def test_index_build_does_not_load_existing_vectors_or_all_rows(self) -> None:
+        with mock.patch.object(
+            self.database,
+            "retrieval_rows",
+            side_effect=AssertionError("index build loaded materialized retrieval rows"),
+        ):
+            result = build_retrieval_index(self.database, self.entities)
+        self.assertEqual(result["vectors"], 3)
+
     def test_hybrid_search_loads_only_bounded_candidates(self) -> None:
         with mock.patch.object(
             self.database, "retrieval_rows", wraps=self.database.retrieval_rows

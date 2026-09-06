@@ -90,25 +90,28 @@ def load_entity_file(path: Path) -> Sequence[Mapping[str, Any]]:
 
 def build_retrieval_index(database: Database, entity_path: Path) -> Dict[str, int]:
     entity_result = database.replace_entities(load_entity_file(entity_path))
-    rows = database.retrieval_rows()
     document_frequency: Counter[str] = Counter()
-    term_counts: Dict[int, Counter[str]] = {}
-    for row in rows:
+    document_count = 0
+    for row in database.iter_indexable_chunks():
         counts = semantic_terms(
             "%s %s %s" % (row["title"], row["section_path"], row["text"])
         )
-        term_counts[int(row["chunk_id"])] = counts
         document_frequency.update(counts.keys())
-    document_count = len(rows)
+        document_count += 1
     idf = {
         term: math.log((document_count + 1) / (frequency + 1)) + 1.0
         for term, frequency in document_frequency.items()
     }
-    vectors = {
-        chunk_id: _tfidf(counts, idf) for chunk_id, counts in term_counts.items()
-    }
-    vector_count = database.replace_vectors(
-        vectors,
+
+    def vectors() -> Iterable[tuple[int, Mapping[str, float]]]:
+        for row in database.iter_indexable_chunks():
+            counts = semantic_terms(
+                "%s %s %s" % (row["title"], row["section_path"], row["text"])
+            )
+            yield int(row["chunk_id"]), _tfidf(counts, idf)
+
+    vector_count = database.replace_vector_stream(
+        vectors(),
         {"schema_version": 1, "document_count": document_count, "idf": idf},
     )
     return {**entity_result, "vectors": vector_count}

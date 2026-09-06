@@ -483,22 +483,53 @@ class Database:
     def replace_vectors(
         self, vectors: Mapping[int, Mapping[str, float]], metadata: Mapping[str, Any]
     ) -> int:
+        return self.replace_vector_stream(vectors.items(), metadata)
+
+    def replace_vector_stream(
+        self,
+        vectors: Iterable[tuple[int, Mapping[str, float]]],
+        metadata: Mapping[str, Any],
+    ) -> int:
+        """Replace semantic vectors without retaining the full corpus in memory."""
         self.initialize()
+        count = 0
         with self.connect() as connection:
             connection.execute("DELETE FROM chunk_vectors")
-            for chunk_id, vector in vectors.items():
+            for chunk_id, vector in vectors:
                 norm = sum(weight * weight for weight in vector.values()) ** 0.5
                 connection.execute(
                     "INSERT INTO chunk_vectors (chunk_id, vector_json, norm) VALUES (?, ?, ?)",
                     (chunk_id, json.dumps(vector, ensure_ascii=False), norm),
                 )
+                count += 1
             connection.execute(
                 "INSERT OR REPLACE INTO retrieval_metadata (key, value_json) VALUES ('semantic', ?)",
                 (json.dumps(metadata, ensure_ascii=False),),
             )
         self._retrieval_metadata_cache = None
         self._retrieval_metadata_signature = None
-        return len(vectors)
+        return count
+
+    def iter_indexable_chunks(self, batch_size: int = 500) -> Iterator[Dict[str, Any]]:
+        """Yield only the text fields required to construct the semantic index."""
+        self.initialize()
+        with self.connect() as connection:
+            cursor = connection.execute(
+                """
+                SELECT c.id AS chunk_id, c.text, c.section_path, s.title
+                FROM chunks c
+                JOIN documents d ON d.id = c.document_id
+                JOIN sources s ON s.id = d.source_id
+                WHERE d.evidence_eligible = 1 AND s.status = 'parsed'
+                ORDER BY c.id
+                """
+            )
+            while True:
+                rows = cursor.fetchmany(batch_size)
+                if not rows:
+                    break
+                for row in rows:
+                    yield dict(row)
 
     def retrieval_rows(
         self, chunk_ids: Optional[Sequence[int]] = None
