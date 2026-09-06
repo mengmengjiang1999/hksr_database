@@ -895,11 +895,14 @@ class Database:
         next_cursor: str,
         terminal: bool,
         classifier_version: str,
-    ) -> Dict[str, int]:
+        *,
+        preserve_completed_inventory: bool = False,
+    ) -> Dict[str, Any]:
         """Atomically register one listing page and its following cursor."""
         self.initialize()
         inserted = 0
         duplicates = 0
+        existing_duplicates = 0
         unverified = 0
         now = utc_now()
         with self.connect() as connection:
@@ -942,6 +945,7 @@ class Database:
                 ).fetchone()[0])
                 if identity in before:
                     duplicates += 1
+                    existing_duplicates += 1
                 else:
                     inserted += 1
                 disposition = "manual_review" if verified else "excluded_unverified"
@@ -954,20 +958,40 @@ class Database:
                        ) VALUES (?, ?, ?, ?, ?, ?)
                        ON CONFLICT(source_id) DO UPDATE SET
                          verified = excluded.verified,
-                         disposition = CASE WHEN source_dispositions.reviewed_at IS NULL
-                                            THEN excluded.disposition ELSE source_dispositions.disposition END,
-                         reason = CASE WHEN source_dispositions.reviewed_at IS NULL
-                                      THEN excluded.reason ELSE source_dispositions.reason END,
-                         classifier_version = CASE WHEN source_dispositions.reviewed_at IS NULL
-                                                  THEN excluded.classifier_version ELSE source_dispositions.classifier_version END,
+                         disposition = CASE
+                           WHEN source_dispositions.reviewed_at IS NOT NULL
+                             THEN source_dispositions.disposition
+                           WHEN source_dispositions.verified = 1 AND excluded.verified = 1
+                             THEN source_dispositions.disposition
+                           ELSE excluded.disposition
+                         END,
+                         reason = CASE
+                           WHEN source_dispositions.reviewed_at IS NOT NULL
+                             THEN source_dispositions.reason
+                           WHEN source_dispositions.verified = 1 AND excluded.verified = 1
+                             THEN source_dispositions.reason
+                           ELSE excluded.reason
+                         END,
+                         classifier_version = CASE
+                           WHEN source_dispositions.reviewed_at IS NOT NULL
+                             THEN source_dispositions.classifier_version
+                           WHEN source_dispositions.verified = 1 AND excluded.verified = 1
+                             THEN source_dispositions.classifier_version
+                           ELSE excluded.classifier_version
+                         END,
                          updated_at = excluded.updated_at""",
                     (source_id, disposition, reason, classifier_version, int(verified), now),
                 )
             previous = connection.execute(
-                "SELECT observed_count FROM account_checkpoints WHERE account_uid = ?",
+                "SELECT observed_count, terminal_at FROM account_checkpoints WHERE account_uid = ?",
                 (account_uid,),
             ).fetchone()
             observed = max(int(previous[0]) if previous else 0, len(before) + inserted)
+            frontier_reached = bool(
+                preserve_completed_inventory and existing_duplicates > 0
+            )
+            effective_terminal = bool(terminal or frontier_reached)
+            effective_cursor = "" if frontier_reached else next_cursor
             connection.execute(
                 """INSERT INTO account_checkpoints(
                        account_uid, next_cursor, terminal, observed_count, updated_at, terminal_at
@@ -980,9 +1004,18 @@ class Database:
                      terminal_at = CASE WHEN excluded.terminal = 1
                                         THEN COALESCE(account_checkpoints.terminal_at, excluded.terminal_at)
                                         ELSE account_checkpoints.terminal_at END""",
-                (account_uid, next_cursor, int(terminal), observed, now, now if terminal else None),
+                (
+                    account_uid, effective_cursor, int(effective_terminal), observed, now,
+                    now if effective_terminal and not (previous and previous[1]) else
+                    (previous[1] if previous else None),
+                ),
             )
-        return {"registered": inserted, "duplicates": duplicates, "unverified": unverified}
+        return {
+            "registered": inserted,
+            "duplicates": duplicates,
+            "unverified": unverified,
+            "frontier_reached": frontier_reached,
+        }
 
     def reserve_daily_request(self, budget_date: str, limit: int) -> int:
         self.initialize()

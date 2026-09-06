@@ -387,6 +387,7 @@ class M7Collector:
             jitter=self.jitter, budget_date=self.budget_date,
         )
         checkpoint = self.database.collection_checkpoint(uid)
+        preserve_completed_inventory = bool(checkpoint.get("terminal_at"))
         cursor = "" if checkpoint["terminal"] else str(checkpoint["next_cursor"] or "")
         report: Dict[str, Any] = {
             "schema_version": 1, "run_id": run_id, "stage": "discovery",
@@ -416,16 +417,23 @@ class M7Collector:
                     raise ValueError("non-terminal page is missing next_offset")
                 counts = self.database.commit_discovery_page(
                     uid, items, next_cursor, terminal, CLASSIFIER_VERSION,
+                    preserve_completed_inventory=preserve_completed_inventory,
                 )
                 report["pages"] += 1
                 report["results"] += len(items)
                 for key in ("registered", "duplicates", "unverified"):
                     report[key] += counts[key]
                 cursor = next_cursor
-                report["terminal"] = terminal
+                report["terminal"] = terminal or counts["frontier_reached"]
+                if counts["frontier_reached"]:
+                    report["incremental_frontier"] = True
+                    break
                 if terminal:
                     break
-            report["checkpoint"] = "terminal" if report["terminal"] else "bounded_pause"
+            report["checkpoint"] = (
+                "incremental_frontier" if report.get("incremental_frontier") else
+                "terminal" if report["terminal"] else "bounded_pause"
+            )
             report["requests"] = controller.request_count
             report["retries"] = controller.retry_count
             report["wait_seconds"] = controller.waits

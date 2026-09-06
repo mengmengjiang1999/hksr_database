@@ -158,6 +158,28 @@ class M7TestCase(unittest.TestCase):
         self.assertEqual(second["registered"], 1)
         self.assertEqual(len(self.database.list_sources()), 2)
 
+    def test_rediscovery_preserves_existing_body_classification(self):
+        self.collector([listing(1, last=True)], discovery_pages=1).discover("official")
+        self.collector([body()], fetch_posts=1).fetch(self.root / "spool", MemoryUploader())
+        source = self.database.list_sources()[0]
+        before = self.database.source_disposition(int(source["id"]))
+        self.assertEqual(before["disposition"], "eligible_evidence")
+
+        incremental = listing(2, last=False, next_offset="older")
+        incremental["data"]["list"].append(
+            listing(1, last=True)["data"]["list"][0]
+        )
+        report = self.collector([incremental], discovery_pages=2).discover("official")
+
+        after = self.database.source_disposition(int(source["id"]))
+        self.assertEqual(after["disposition"], "eligible_evidence")
+        self.assertEqual(after["reason"], before["reason"])
+        self.assertEqual(after["classifier_version"], before["classifier_version"])
+        self.assertEqual(report["registered"], 1)
+        self.assertEqual(report["checkpoint"], "incremental_frontier")
+        self.assertTrue(self.database.collection_checkpoint("official")["terminal"])
+        self.assertEqual(self.database.collection_checkpoint("official")["next_cursor"], "")
+
     def test_malformed_response_does_not_advance_checkpoint(self):
         collector = self.collector([{"retcode": 0, "data": {"list": {}, "is_last": True}}])
         with self.assertRaisesRegex(ValueError, "list is malformed"):
