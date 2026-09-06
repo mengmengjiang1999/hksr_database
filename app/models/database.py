@@ -250,6 +250,23 @@ SQLITE_MIGRATIONS = (
             ON identity_names(name, owner_kind);
         """,
     ),
+    (
+        4,
+        """
+        INSERT INTO source_dispositions(
+            source_id, disposition, reason, classifier_version, verified, updated_at
+        )
+        SELECT s.id, 'eligible_evidence', 'pre_m7_verified_wiki_content',
+               'm7-v1', 1, COALESCE(s.parsed_at, s.discovered_at)
+        FROM sources s
+        WHERE s.provider = 'mihoyo_wiki'
+          AND s.official_status IN ('verified', 'wiki')
+          AND s.status = 'parsed'
+          AND NOT EXISTS (
+              SELECT 1 FROM source_dispositions d WHERE d.source_id = s.id
+          );
+        """,
+    ),
 )
 
 

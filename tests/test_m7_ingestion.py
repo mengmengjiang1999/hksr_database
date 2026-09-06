@@ -122,12 +122,34 @@ class M7TestCase(unittest.TestCase):
             tables = {row[0] for row in connection.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )}
-        self.assertEqual([row[0] for row in versions], [1, 2, 3])
+        self.assertEqual([row[0] for row in versions], [1, 2, 3, 4])
         self.assertTrue({
             "collection_runs", "account_checkpoints", "daily_request_budgets",
             "source_dispositions", "fetch_attempts", "raw_object_manifests",
             "wiki_refresh_checkpoints",
         }.issubset(tables))
+
+    def test_migration_backfills_verified_pre_m7_wiki_disposition(self):
+        source_id = self.database.upsert_source({
+            "provider": "mihoyo_wiki", "external_id": "legacy-wiki",
+            "source_kind": "wiki_character", "parser": "wiki_content",
+            "page_url": "https://example.test/wiki/legacy",
+            "api_url": "https://example.test/api/legacy",
+            "official_status": "verified",
+        })
+        with self.database.connect() as connection:
+            connection.execute(
+                "UPDATE sources SET status = 'parsed', parsed_at = discovered_at WHERE id = ?",
+                (source_id,),
+            )
+            connection.execute("DELETE FROM hksr_sqlite_migrations WHERE version = 4")
+
+        self.database.initialize()
+
+        disposition = self.database.source_disposition(source_id)
+        self.assertEqual(disposition["disposition"], "eligible_evidence")
+        self.assertEqual(disposition["reason"], "pre_m7_verified_wiki_content")
+        self.assertTrue(disposition["verified"])
 
     def test_cursor_resumes_across_runs_and_terminal_is_upstream_driven(self):
         first = self.collector([listing(1, last=False, next_offset="cursor-2")], discovery_pages=1)
