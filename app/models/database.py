@@ -491,15 +491,30 @@ class Database:
         metadata: Mapping[str, Any],
     ) -> int:
         """Replace semantic vectors without retaining the full corpus in memory."""
+        serialized = (
+            (
+                chunk_id,
+                json.dumps(vector, ensure_ascii=False),
+                sum(weight * weight for weight in vector.values()) ** 0.5,
+            )
+            for chunk_id, vector in vectors
+        )
+        return self.replace_serialized_vector_stream(serialized, metadata)
+
+    def replace_serialized_vector_stream(
+        self,
+        vectors: Iterable[tuple[int, str, float]],
+        metadata: Mapping[str, Any],
+    ) -> int:
+        """Replace pre-serialized vectors after their source read transaction closes."""
         self.initialize()
         count = 0
         with self.connect() as connection:
             connection.execute("DELETE FROM chunk_vectors")
-            for chunk_id, vector in vectors:
-                norm = sum(weight * weight for weight in vector.values()) ** 0.5
+            for chunk_id, vector_json, norm in vectors:
                 connection.execute(
                     "INSERT INTO chunk_vectors (chunk_id, vector_json, norm) VALUES (?, ?, ?)",
-                    (chunk_id, json.dumps(vector, ensure_ascii=False), norm),
+                    (chunk_id, vector_json, norm),
                 )
                 count += 1
             connection.execute(

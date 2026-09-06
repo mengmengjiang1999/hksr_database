@@ -6,6 +6,7 @@ import json
 import math
 import re
 import sqlite3
+import tempfile
 import unicodedata
 from collections import Counter
 from pathlib import Path
@@ -103,17 +104,30 @@ def build_retrieval_index(database: Database, entity_path: Path) -> Dict[str, in
         for term, frequency in document_frequency.items()
     }
 
-    def vectors() -> Iterable[tuple[int, Mapping[str, float]]]:
+    with tempfile.TemporaryFile(mode="w+t", encoding="utf-8") as spool:
         for row in database.iter_indexable_chunks():
             counts = semantic_terms(
                 "%s %s %s" % (row["title"], row["section_path"], row["text"])
             )
-            yield int(row["chunk_id"]), _tfidf(counts, idf)
+            vector = _tfidf(counts, idf)
+            norm = math.sqrt(sum(weight * weight for weight in vector.values()))
+            spool.write(
+                "%d\t%.17g\t%s\n" % (
+                    int(row["chunk_id"]), norm,
+                    json.dumps(vector, ensure_ascii=False, separators=(",", ":")),
+                )
+            )
+        spool.seek(0)
 
-    vector_count = database.replace_vector_stream(
-        vectors(),
-        {"schema_version": 1, "document_count": document_count, "idf": idf},
-    )
+        def serialized_vectors() -> Iterable[tuple[int, str, float]]:
+            for line in spool:
+                chunk_id, norm, vector_json = line.rstrip("\n").split("\t", 2)
+                yield int(chunk_id), vector_json, float(norm)
+
+        vector_count = database.replace_serialized_vector_stream(
+            serialized_vectors(),
+            {"schema_version": 1, "document_count": document_count, "idf": idf},
+        )
     return {**entity_result, "vectors": vector_count}
 
 
