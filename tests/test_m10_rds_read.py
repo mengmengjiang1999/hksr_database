@@ -85,6 +85,15 @@ class PoolContractTests(unittest.TestCase):
         self.assertIn("d.evidence_eligible::integer AS evidence_eligible", text)
         self.assertIn("r.is_stale::integer AS is_stale", text)
 
+    def test_entity_candidates_use_shared_stable_source_priority(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        sqlite_text = root.joinpath("app/models/database.py").read_text(encoding="utf-8")
+        postgres_text = root.joinpath("app/models/read_store.py").read_text(encoding="utf-8")
+        for text in (sqlite_text, postgres_text):
+            self.assertIn("s.source_kind = 'wiki_character' THEN 0", text)
+            self.assertIn("s.source_kind = 'wiki_quest' THEN 1", text)
+            self.assertIn("s.source_kind = 'official_article' THEN 3", text)
+
     def test_runtime_migration_contains_parity_objects_and_indexes(self) -> None:
         root = Path(__file__).resolve().parents[1]
         sql = root.joinpath("migrations/postgres/005_m10_read_runtime.sql").read_text(

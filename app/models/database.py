@@ -659,7 +659,17 @@ class Database:
                 JOIN sources s ON s.id = d.source_id
                 WHERE %s
                 GROUP BY ec.chunk_id
-                ORDER BY matched_entities DESC, ec.chunk_id
+                ORDER BY matched_entities DESC,
+                         CASE
+                           WHEN s.source_kind = 'wiki_character' THEN 0
+                           WHEN s.source_kind = 'wiki_quest' THEN 1
+                           WHEN s.source_kind LIKE 'wiki_%%' THEN 2
+                           WHEN s.source_kind = 'official_article' THEN 3
+                           WHEN s.source_kind = 'official_video' THEN 4
+                           ELSE 5
+                         END,
+                         s.provider || ':' || s.external_id || ':' ||
+                         d.document_key || ':' || c.chunk_key
                 LIMIT ?
                 """ % " AND ".join(filters),
                 [*parameters, int(limit)],

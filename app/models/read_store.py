@@ -394,7 +394,17 @@ class PostgresReadStore:
                    JOIN hksr.documents d ON d.id=c.document_id
                    JOIN hksr.sources s ON s.id=d.source_id
                    WHERE """ + " AND ".join(filters) +
-                " GROUP BY c.id ORDER BY matched_entities DESC, c.evidence_id LIMIT %s",
+                """ GROUP BY c.id, s.source_kind
+                    ORDER BY matched_entities DESC,
+                             CASE
+                               WHEN s.source_kind = 'wiki_character' THEN 0
+                               WHEN s.source_kind = 'wiki_quest' THEN 1
+                               WHEN s.source_kind LIKE 'wiki_%' THEN 2
+                               WHEN s.source_kind = 'official_article' THEN 3
+                               WHEN s.source_kind = 'official_video' THEN 4
+                               ELSE 5
+                             END,
+                             c.evidence_id LIMIT %s""",
                 parameters,
             ).fetchall()
         return [int(row["chunk_id"]) for row in rows]
