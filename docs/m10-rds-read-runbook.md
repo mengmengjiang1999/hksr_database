@@ -2,7 +2,8 @@
 
 应用只接受 `sqlite` 或 `postgres` 两种显式后端。ECS 上由权限为 `0600` 的
 `~/.config/hksr/read-backend` 保存当前值；只有选择 `postgres` 时，启动脚本才读取既有的
-`~/.config/hksr/rds.dsn`。日志、命令输出和验收报告不得打印该文件内容。
+`~/.config/hksr/rds-runtime.dsn`。高权限迁移连接仍保存在 `rds.dsn`，应用启动脚本不得读取它。
+日志、命令输出和验收报告不得打印任一文件内容。
 
 ## 验收顺序
 
@@ -11,6 +12,10 @@
 3. 分别执行 `m10-manifest`、`m10-evaluate` 和 `m10-shadow`；生成能力保持关闭。
 4. 权限矩阵必须证明应用角色能读取所需对象，但不能写证据、导入状态、Schema、角色或无关 Schema。
 5. 仅在清单、质量、双读和权限检查全部通过后，将配置改为 `postgres` 并重启服务。
+
+运行角色由 `deploy/configure-rds-runtime-role.py --apply` 创建或轮换。脚本只输出角色属性、
+允许/拒绝矩阵和 SQLSTATE，不输出密码或连接串；运行 DSN 以 `0600` 原子写入
+`~/.config/hksr/rds-runtime.dsn`。
 
 双读是离线验收：同一套固定问题分别读取 SQLite 与 RDS，再比较稳定证据 ID、实体、回答状态、
 引用、来源导航、目录和关系。线上请求不会同时查询两套数据库。

@@ -3,7 +3,7 @@ set -euo pipefail
 
 project_dir=${HKSR_PROJECT_DIR:-/home/ecs-user/hksr_database}
 backend_file=${HKSR_BACKEND_FILE:-${HOME}/.config/hksr/read-backend}
-rds_file=${HKSR_RDS_FILE:-${HOME}/.config/hksr/rds.dsn}
+rds_file=${HKSR_RDS_FILE:-${HOME}/.config/hksr/rds-runtime.dsn}
 
 backend=sqlite
 if [[ -f "$backend_file" ]]; then
