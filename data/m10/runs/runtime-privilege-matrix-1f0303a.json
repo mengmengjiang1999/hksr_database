@@ -1,0 +1,106 @@
+{
+  "denied_operations": {
+    "evidence_delete": {
+      "allowed": false,
+      "sqlstate": "25006"
+    },
+    "evidence_insert": {
+      "allowed": false,
+      "sqlstate": "25006"
+    },
+    "evidence_update": {
+      "allowed": false,
+      "sqlstate": "25006"
+    },
+    "role_create": {
+      "allowed": false,
+      "sqlstate": "25006"
+    },
+    "schema_create": {
+      "allowed": false,
+      "sqlstate": "25006"
+    },
+    "unrelated_schema": {
+      "allowed": false,
+      "sqlstate": "42501"
+    }
+  },
+  "identity": {
+    "can_create_databases": false,
+    "can_create_roles": false,
+    "role": "hksr_runtime",
+    "superuser": false,
+    "transaction_read_only": "on"
+  },
+  "passed": true,
+  "required_reads": {
+    "hksr.aliases": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.chunk_vectors": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.chunks": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.documents": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.entities": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.entity_chunks": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.identity_names": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.import_batches": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.narrative_people": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.playable_forms": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.relation_evidence": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.relations": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.retrieval_metadata": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.retrieval_metadata_chunks": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.source_dispositions": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr.sources": {
+      "allowed": true,
+      "sqlstate": null
+    },
+    "hksr_meta.schema_migrations": {
+      "allowed": true,
+      "sqlstate": null
+    }
+  }
+}

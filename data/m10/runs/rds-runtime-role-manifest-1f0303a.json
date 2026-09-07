@@ -1,0 +1,91 @@
+{
+  "accepted_m7_snapshot": {
+    "blockers": [],
+    "count_mismatches": {},
+    "disposition_mismatches": {},
+    "passed": true
+  },
+  "application_revision": "1f0303a",
+  "backend": "postgres",
+  "corpus": {
+    "counts": {
+      "aliases": 47,
+      "chunks": 20291,
+      "documents": 6709,
+      "eligible_evidence": 20291,
+      "entities": 36,
+      "relations": 486,
+      "semantic_vectors": 20291,
+      "sources": 7845
+    },
+    "evidence_fingerprint": "4dcd3de750f76a4cdbd7e990d9bff92d6395efca31faf5d8f413bca9eea1da9d",
+    "fingerprint": "df3013318466fab0b4dafa0366de4edd0b818d960e3eb91236893c5f1b644917",
+    "schema_version": 1,
+    "source_kinds": {
+      "official_article": 1902,
+      "official_video": 637,
+      "wiki_achievement": 682,
+      "wiki_character": 98,
+      "wiki_collectible": 8,
+      "wiki_consumable": 292,
+      "wiki_dreamscape_pass": 18,
+      "wiki_endgame": 650,
+      "wiki_enemy": 226,
+      "wiki_event": 137,
+      "wiki_furniture": 64,
+      "wiki_light_cone": 168,
+      "wiki_material": 195,
+      "wiki_outfit": 166,
+      "wiki_periodical": 93,
+      "wiki_quest": 686,
+      "wiki_quest_item": 509,
+      "wiki_readable": 652,
+      "wiki_relic": 60,
+      "wiki_shop": 17,
+      "wiki_simulated_universe": 128,
+      "wiki_special_item": 137,
+      "wiki_valuable": 320
+    },
+    "source_providers": {
+      "mihoyo_wiki": 5306,
+      "miyoushe": 2539
+    },
+    "source_statuses": {
+      "fetched": 11,
+      "parsed": 5661,
+      "skipped": 2173
+    }
+  },
+  "dataset_fingerprint": "862813401e5b5e867ed90894148fad0a720aa1afd0a2e85274f239d8a8833981",
+  "dataset_version": "m9-real-questions-v1",
+  "disposition_rows": 7845,
+  "dispositions": {
+    "eligible_evidence": 5661,
+    "excluded_operational": 11,
+    "excluded_unavailable": 2173
+  },
+  "historical_m9_comparison": {
+    "acceptance_eligible": false,
+    "cases": 60,
+    "corpus_chunks": 1890,
+    "correct": 56,
+    "label": "historical_partial_corpus_only"
+  },
+  "index_version": "sparse-tfidf-v1",
+  "manifest_fingerprint": "7b208f0ed0e8d5b841b6a9c426402cf366f57b29c0eaf767caec364b9f872a22",
+  "retrieval": {
+    "entity_candidate_limit": 200,
+    "generation_enabled": false,
+    "rerank_candidate_limit": 500
+  },
+  "runtime_schema": "006_m10_chunked_retrieval_metadata.sql",
+  "schema_version": 1,
+  "stable_evidence_ids": {
+    "count": 20291,
+    "synthetic": 0,
+    "unique": true
+  },
+  "taxonomy_fingerprint": "f4a1122d595a9093ede58da03141e55815614434d3a69fe59b967cc2300461b5",
+  "taxonomy_version": "m9-question-taxonomy-v1",
+  "unverified_evidence_sources": 0
+}
