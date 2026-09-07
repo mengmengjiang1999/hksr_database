@@ -673,11 +673,13 @@ class PostgresReadStore:
                                   COALESCE(content_sha256,'') AS content_sha256
                            FROM hksr.sources ORDER BY provider, external_id""",
             "documents": """SELECT s.provider, s.external_id, d.document_key,
-                                    d.evidence_eligible FROM hksr.documents d
+                                    d.evidence_eligible::integer AS evidence_eligible
+                               FROM hksr.documents d
                                JOIN hksr.sources s ON s.id=d.source_id
                                ORDER BY s.provider, s.external_id, d.document_key""",
             "chunks": """SELECT s.provider, s.external_id, d.document_key, c.chunk_key,
-                                 c.content_sha256, d.evidence_eligible, s.status
+                                 c.content_sha256,
+                                 d.evidence_eligible::integer AS evidence_eligible, s.status
                           FROM hksr.chunks c JOIN hksr.documents d ON d.id=c.document_id
                           JOIN hksr.sources s ON s.id=d.source_id
                           ORDER BY s.provider, s.external_id, d.document_key, c.chunk_key""",
@@ -688,7 +690,8 @@ class PostgresReadStore:
                            ORDER BY e.entity_type, e.canonical_name, a.alias""",
             "relations": """SELECT se.canonical_name AS subject, r.predicate,
                              oe.canonical_name AS object, r.evidence_level,
-                             r.review_status, r.is_stale FROM hksr.relations r
+                             r.review_status, r.is_stale::integer AS is_stale
+                             FROM hksr.relations r
                              JOIN hksr.entities se ON se.id=r.subject_id
                              JOIN hksr.entities oe ON oe.id=r.object_id
                              ORDER BY subject, r.predicate, object""",

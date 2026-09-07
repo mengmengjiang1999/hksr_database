@@ -79,6 +79,12 @@ class PoolContractTests(unittest.TestCase):
             self.assertNotIn(".connect()", text, relative)
             self.assertNotIn("import sqlite3", text, relative)
 
+    def test_postgres_manifest_normalizes_boolean_fields_like_sqlite(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        text = root.joinpath("app/models/read_store.py").read_text(encoding="utf-8")
+        self.assertIn("d.evidence_eligible::integer AS evidence_eligible", text)
+        self.assertIn("r.is_stale::integer AS is_stale", text)
+
     def test_runtime_migration_contains_parity_objects_and_indexes(self) -> None:
         root = Path(__file__).resolve().parents[1]
         sql = root.joinpath("migrations/postgres/005_m10_read_runtime.sql").read_text(
