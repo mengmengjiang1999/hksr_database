@@ -41,8 +41,9 @@
 
 - [x] 7.1 Run the full offline suite, strict OpenSpec validation, schema migration audit, evidence-link audit, and secret scan.
 - [x] 7.2 Deploy deterministic entity, intent and direct-answer behavior to ECS behind a reversible feature flag and compare the real-question baseline.
-- [ ] 7.3 Configure one optional private model trial without committing credentials, verify timeout and fallback, and record latency and usage limits.
-- [x] 7.4 Re-run the versioned evaluation as Wiki coverage grows and defer final retrieval thresholds until the M7 corpus is sufficiently complete.
+- [x] 7.3 Re-run the versioned evaluation as Wiki coverage grows and defer final retrieval thresholds until the M7 corpus is sufficiently complete.
+
+The optional private-provider trial is explicitly deferred from M9 acceptance. Provider selection, cost limits, credential provisioning, real-network timeout behavior, and provider usage measurements require a separate future OpenSpec change and explicit approval; no such trial was run or claimed here.
 
 ## 8. Interactive retrieval scalability
 

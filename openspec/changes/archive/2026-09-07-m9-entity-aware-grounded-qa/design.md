@@ -20,6 +20,7 @@ This change must improve answer usefulness before full collection finishes witho
 - Treating `SP` or other community shorthand as an official fact.
 - Letting a model query the database freely, browse the Internet, use uncited memory, or write collection state.
 - Fine-tuning a model, publishing the service, replacing SQLite with RDS, or declaring final full-corpus quality acceptance.
+- Selecting or paying for a model provider, configuring provider credentials, or running a real private-provider trial; these require a separate future OpenSpec change and explicit approval.
 - Automatically approving identity relations based only on name similarity or co-occurrence.
 
 ## Decisions
@@ -46,7 +47,7 @@ Alternative: postpone all evaluation until collection ends. Rejected because ent
 
 Introduce a provider-neutral adapter that receives only the question plan and a bounded evidence packet. It returns JSON claims with evidence IDs and exact supporting spans. Deterministic code validates membership, exact spans, claim type requirements, inference multiplicity and conflicts. Direct templates may add fixed non-factual connective language, but unsupported factual text never survives validation.
 
-The adapter is disabled by default. Invalid JSON, timeout, provider error, empty validated claims or policy rejection falls back to deterministic intent templates and then the existing extractive baseline.
+The adapter is disabled by default. Invalid JSON, timeout, provider error, empty validated claims or policy rejection falls back to deterministic intent templates and then the existing extractive baseline. M9 verifies this boundary with deterministic fake adapters and does not configure or call a real provider.
 
 Alternative: let the model write a polished answer and check only that citations exist. Rejected because unrelated citations would not prevent hallucinated claims.
 
@@ -88,13 +89,14 @@ Alternative: create a second answer endpoint. Rejected because it duplicates cli
 2. Add typed entity tables or fields and migrate a small curated set, beginning with `姬子` and `姬子·启行`; run relation and citation integrity audits.
 3. Deploy deterministic intent resolution, form-aware retrieval and direct templates behind a feature flag; compare old and new results.
 4. Extend the API and UI compatibly and validate the fixed question set locally and on ECS.
-5. Add the disabled-by-default model adapter, secret configuration path, structured validation, timeout and fallback; enable only for private testing after deterministic gates pass.
+5. Add the disabled-by-default model adapter, secret configuration boundary, structured validation, timeout and fallback; verify it offline with deterministic fake adapters. Any real private-provider trial is deferred to a separate future change.
 6. Re-run evaluation as M7 grows, then freeze final thresholds after sufficient Wiki coverage.
 
 Rollback disables generation and intent-aware answering, restores the extractive path, and retains the additive entity records and evaluation reports for diagnosis. No rollback step deletes collected sources, raw objects, evidence or M7 checkpoints.
 
-## Open Questions
+## Deferred Decisions
 
-- Which model provider and cost ceiling should be used for the first private generation trial?
+- Which model provider and cost ceiling should be used for a future private generation trial? This remains undecided and is outside M9 acceptance.
+- How should future provider credentials be provisioned and rotated on ECS? No credential is configured by M9.
 - Which official passages are sufficient to approve same-narrative-identity links when the Wiki exposes separate playable pages but does not state the link in one sentence?
 - Should gameplay-only statistics and build advice remain outside answers even when present in Wiki modules, or become an explicitly selectable question scope later?

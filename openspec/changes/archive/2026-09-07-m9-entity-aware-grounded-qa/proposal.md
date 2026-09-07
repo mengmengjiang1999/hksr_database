@@ -10,6 +10,7 @@ The growing Wiki corpus can retrieve related text, but the current extractive ba
 - Require relation retrieval to cover both resolved endpoints or explicitly refuse when the current evidence does not support the requested relation.
 - Add a provider-neutral constrained generation interface that receives only the current official evidence package and emits structured claims with evidence IDs.
 - Validate every generated claim with the existing deterministic grounding boundary, falling back to the extractive baseline when generation is disabled, unavailable, invalid, or times out.
+- Keep the model adapter disabled and validate it with deterministic fake adapters only; selecting a provider, setting a cost ceiling, configuring credentials, and running a private model trial are deferred to a separate future OpenSpec change.
 - Extend the private UI and API to return a concise direct answer, evidence status, identity/form explanation, claim-level citations, and safe failure or ambiguity states.
 - Keep M7 collection independent and running; final full-corpus ranking thresholds and acceptance remain gated on sufficient Wiki ingestion.
 
@@ -29,6 +30,6 @@ The growing Wiki corpus can retrieve related text, but the current extractive ba
 
 ## Impact
 
-- Affects entity and relation storage, curated catalogs, retrieval ranking, question answering, API response contracts, the private web interface, evaluation fixtures, and ECS configuration for an optional model provider.
-- Introduces an optional outbound model dependency, but no model credential is stored in Git, SQLite, reports, or browser responses.
+- Affects entity and relation storage, curated catalogs, retrieval ranking, question answering, API response contracts, the private web interface, evaluation fixtures, and a disabled-by-default provider-neutral model boundary.
+- Does not configure an outbound model provider. No model credential is stored in Git, SQLite, reports, browser responses, or the current ECS deployment.
 - Does not stop or alter M7 request pacing, expose the application publicly, fine-tune a model, permit model-memory facts, or make full-corpus acceptance claims before collection is sufficiently complete.
