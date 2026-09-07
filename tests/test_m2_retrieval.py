@@ -70,6 +70,13 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(results[0]["matched_query_entities"][0]["name"], "三月七")
         self.assertIn("semantic", results[0]["score_components"])
 
+    def test_exact_entity_speaker_is_an_explicit_ranking_signal(self) -> None:
+        with self.database.connect() as connection:
+            connection.execute("UPDATE chunks SET speaker='三月七' WHERE position=0")
+        results = hybrid_search(self.database, "三月七怎样看待自己的经历？", limit=3)
+        spoken = next(item for item in results if item["speaker"] == "三月七")
+        self.assertEqual(spoken["score_components"]["speaker"], 1.0)
+
     def test_filters_are_applied_before_ranking(self) -> None:
         self.assertTrue(hybrid_search(self.database, "列车", contexts=["in_game"]))
         self.assertEqual(hybrid_search(self.database, "列车", contexts=["promotional"]), [])

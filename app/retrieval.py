@@ -287,6 +287,11 @@ def hybrid_search(
             normalize_text(item["canonical_name"]) in normalize_text(row["section_path"])
             for item in matched_entities
         ) else 0.0
+        normalized_speaker = normalize_text(str(row.get("speaker") or ""))
+        speaker = 1.0 if normalized_speaker and any(
+            normalize_text(alias["text"]) == normalized_speaker
+            for item in matched_entities for alias in item["aliases"]
+        ) else 0.0
         candidates.append(
             {
                 **{key: value for key, value in row.items() if key not in {"vector", "norm"}},
@@ -300,6 +305,7 @@ def hybrid_search(
                 "_semantic": semantic,
                 "_entity": entity,
                 "_section": section,
+                "_speaker": speaker,
             }
         )
 
@@ -308,33 +314,38 @@ def hybrid_search(
         semantic = item.pop("_semantic")
         entity = item.pop("_entity")
         section = item.pop("_section")
+        speaker = item.pop("_speaker")
         source = SOURCE_WEIGHTS.get(item["source_kind"], 0.8)
         if mode == "lexical":
             score = lexical
         elif mode == "semantic":
             score = semantic
         else:
-            score = 0.15 * lexical + 0.55 * semantic + 0.20 * entity + 0.05 * section + 0.05 * source
+            score = (
+                0.35 * lexical + 0.25 * semantic + 0.20 * entity
+                + 0.05 * section + 0.10 * speaker + 0.05 * source
+            )
         item["score"] = round(score, 6)
         item["score_components"] = {
             "lexical": round(lexical, 6),
             "semantic": round(semantic, 6),
             "entity": round(entity, 6),
             "section": round(section, 6),
+            "speaker": round(speaker, 6),
             "source_quality": round(source, 6),
         }
-    candidates.sort(key=lambda item: (-item["score"], int(item["chunk_id"])))
+    candidates.sort(key=lambda item: (-item["score"], item["evidence_id"]))
     for original_rank, item in enumerate(candidates, start=1):
         item["retrieval_diagnostics"] = {"original_rank": original_rank}
     selected = []
     source_counts: Counter[tuple[str, str]] = Counter()
     remaining = list(candidates)
     while remaining and len(selected) < limit:
-        def adjusted(candidate: Mapping[str, Any]) -> tuple[float, int]:
+        def adjusted(candidate: Mapping[str, Any]) -> tuple[float, str]:
             source_key = (str(candidate["provider"]), str(candidate["external_id"]))
             penalty = 0.015 * source_counts[source_key]
-            return float(candidate["score"]) - penalty, -int(candidate["chunk_id"])
-        best = max(remaining, key=adjusted)
+            return -(float(candidate["score"]) - penalty), str(candidate["evidence_id"])
+        best = min(remaining, key=adjusted)
         remaining.remove(best)
         source_key = (str(best["provider"]), str(best["external_id"]))
         penalty = round(0.015 * source_counts[source_key], 6)
