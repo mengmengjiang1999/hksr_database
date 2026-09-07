@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from app.cloud.runtime_role import (
-    META_READ_TABLES, READ_TABLES, _atomic_secret, validate_role_name,
+    META_READ_TABLES, READ_TABLES, _atomic_secret, runtime_dsn, validate_role_name,
 )
 
 
@@ -43,6 +43,22 @@ class RuntimeRoleTests(unittest.TestCase):
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             self.assertEqual(path.parent.stat().st_mode & 0o777, 0o700)
             self.assertEqual(path.read_text(encoding="utf-8").count("\n"), 1)
+
+    def test_runtime_dsn_remains_url_and_replaces_admin_credentials(self) -> None:
+        value = runtime_dsn(
+            "postgresql://admin:old@example.test:5432/hksr?sslmode=require",
+            "hksr_runtime",
+            "new:/?#[]@ password",
+        )
+        self.assertTrue(value.startswith("postgresql://hksr_runtime:"))
+        self.assertIn("@example.test:5432/hksr?sslmode=require", value)
+        self.assertNotIn("admin", value)
+        self.assertNotIn("old", value)
+        self.assertNotIn(" password", value)
+
+    def test_runtime_dsn_rejects_keyword_conninfo(self) -> None:
+        with self.assertRaises(ValueError):
+            runtime_dsn("host=example.test dbname=hksr", "hksr_runtime", "secret")
 
 
 if __name__ == "__main__":

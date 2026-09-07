@@ -9,6 +9,7 @@ import secrets
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional
+from urllib.parse import quote, urlsplit, urlunsplit
 
 
 DEFAULT_ROLE = "hksr_runtime"
@@ -71,6 +72,18 @@ def _atomic_secret(path: Path, value: str) -> None:
         raise
 
 
+def runtime_dsn(admin_dsn: str, role: str, password: str) -> str:
+    """Return an application-compatible URL without exposing admin credentials."""
+    parsed = urlsplit(admin_dsn)
+    if parsed.scheme not in {"postgres", "postgresql"} or not parsed.hostname:
+        raise ValueError("Administrator DSN must use postgres:// or postgresql://")
+    host_port = parsed.netloc.rsplit("@", 1)[-1]
+    authority = "%s:%s@%s" % (
+        quote(role, safe=""), quote(password, safe=""), host_port,
+    )
+    return urlunsplit((parsed.scheme, authority, parsed.path, parsed.query, parsed.fragment))
+
+
 def provision_runtime_role(
     admin_dsn: str,
     runtime_path: Path,
@@ -83,7 +96,7 @@ def provision_runtime_role(
     password = password or secrets.token_urlsafe(36)
     psycopg = _require_psycopg()
     from psycopg import sql
-    from psycopg.conninfo import conninfo_to_dict, make_conninfo
+    from psycopg.conninfo import conninfo_to_dict
 
     connection_info = conninfo_to_dict(admin_dsn)
     database_name = connection_info.get("dbname")
@@ -144,8 +157,7 @@ def provision_runtime_role(
             )
         )
 
-    runtime_dsn = make_conninfo(admin_dsn, user=role, password=password)
-    _atomic_secret(Path(runtime_path), runtime_dsn)
+    _atomic_secret(Path(runtime_path), runtime_dsn(admin_dsn, role, password))
     return {
         "role": role,
         "runtime_dsn_path": str(runtime_path),
