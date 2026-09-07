@@ -292,6 +292,9 @@ def hybrid_search(
             normalize_text(alias["text"]) == normalized_speaker
             for item in matched_entities for alias in item["aliases"]
         ) else 0.0
+        endpoint = 1.0 if len(matched_entity_ids) >= 2 and matched_entity_ids.issubset(
+            row_entity_ids
+        ) else 0.0
         candidates.append(
             {
                 **{key: value for key, value in row.items() if key not in {"vector", "norm"}},
@@ -306,6 +309,7 @@ def hybrid_search(
                 "_entity": entity,
                 "_section": section,
                 "_speaker": speaker,
+                "_endpoint": endpoint,
             }
         )
 
@@ -315,6 +319,7 @@ def hybrid_search(
         entity = item.pop("_entity")
         section = item.pop("_section")
         speaker = item.pop("_speaker")
+        endpoint = item.pop("_endpoint")
         source = SOURCE_WEIGHTS.get(item["source_kind"], 0.8)
         if mode == "lexical":
             score = lexical
@@ -322,8 +327,9 @@ def hybrid_search(
             score = semantic
         else:
             score = (
-                0.35 * lexical + 0.25 * semantic + 0.20 * entity
-                + 0.05 * section + 0.10 * speaker + 0.05 * source
+                0.15 * lexical + 0.55 * semantic + 0.20 * entity
+                + 0.05 * section + 0.05 * source
+                + 0.10 * speaker + 0.05 * endpoint
             )
         item["score"] = round(score, 6)
         item["score_components"] = {
@@ -332,6 +338,7 @@ def hybrid_search(
             "entity": round(entity, 6),
             "section": round(section, 6),
             "speaker": round(speaker, 6),
+            "endpoint_coverage": round(endpoint, 6),
             "source_quality": round(source, 6),
         }
     candidates.sort(key=lambda item: (-item["score"], item["evidence_id"]))

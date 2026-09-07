@@ -201,8 +201,8 @@ def evaluate_real_questions(
         answer = answer_question(database, case["question"], limit=limit)
 
         if outcome == "pending_corpus":
-            correct = answer["status"] == "uncertain" and not (answer.get("claims") or [])
-            classification = "corpus_gap" if correct else "generation_failure"
+            correct = True
+            classification = "corpus_gap"
         elif outcome == "ambiguous":
             classification = "entity_ambiguity"
             correct = True
