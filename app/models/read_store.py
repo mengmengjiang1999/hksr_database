@@ -399,7 +399,7 @@ class PostgresReadStore:
                              CASE
                                WHEN s.source_kind = 'wiki_character' THEN 0
                                WHEN s.source_kind = 'wiki_quest' THEN 1
-                               WHEN s.source_kind LIKE 'wiki_%' THEN 2
+                               WHEN s.source_kind LIKE 'wiki_%%' THEN 2
                                WHEN s.source_kind = 'official_article' THEN 3
                                WHEN s.source_kind = 'official_video' THEN 4
                                ELSE 5

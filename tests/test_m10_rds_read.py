@@ -93,6 +93,7 @@ class PoolContractTests(unittest.TestCase):
             self.assertIn("s.source_kind = 'wiki_character' THEN 0", text)
             self.assertIn("s.source_kind = 'wiki_quest' THEN 1", text)
             self.assertIn("s.source_kind = 'official_article' THEN 3", text)
+        self.assertIn("s.source_kind LIKE 'wiki_%%' THEN 2", postgres_text)
 
     def test_runtime_migration_contains_parity_objects_and_indexes(self) -> None:
         root = Path(__file__).resolve().parents[1]
