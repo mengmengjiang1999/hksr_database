@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Runtime schema and index audit
-Cloud validation MUST compare the deployed RDS objects with the application read contract, including M9 identity data, eligible-evidence filters, stable keys, required constraints, and only those indexes justified by recorded full-corpus query plans.
+Cloud validation MUST compare the deployed RDS objects with the application read contract, including M9 identity data, eligible-evidence filters, stable keys, required constraints, and required indexes.
 
 #### Scenario: Migration is ready for application reads
 - **WHEN** the runtime schema audit completes
@@ -13,13 +13,6 @@ The cloud acceptance workflow SHALL test the actual application read role from t
 #### Scenario: Application role validation runs on ECS
 - **WHEN** the role executes the fixed privilege matrix
 - **THEN** all application reads pass while evidence writes, ingestion-state writes, schema changes, role changes, and unrelated-schema access fail
-
-### Requirement: Measured index selection
-Each new RDS retrieval index MUST be supported by before-and-after `EXPLAIN (ANALYZE, BUFFERS)` evidence on the frozen corpus, measured build size and time, write/sync impact, and a rollback statement.
-
-#### Scenario: A Chinese lexical index is proposed
-- **WHEN** available `pg_bigm`, `pg_jieba`, `zhparser`, or built-in text-search strategies are compared
-- **THEN** only the smallest strategy meeting recall and latency gates is retained and unused experimental indexes are removed before acceptance
 
 ### Requirement: Cutover and rollback audit
 Cloud validation MUST record backend configuration, readiness, normalized shadow comparison, active-service smoke results, and a successful SQLite rollback drill without recording protected configuration values.

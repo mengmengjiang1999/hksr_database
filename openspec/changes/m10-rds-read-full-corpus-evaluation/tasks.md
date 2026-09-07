@@ -3,7 +3,7 @@
 - [ ] 1.1 Add a secret-safe M10 manifest command that records backend, schema/index versions, retrieval configuration, dataset version, counts, dispositions, stable-evidence uniqueness, and a deterministic corpus fingerprint.
 - [ ] 1.2 Freeze and verify the accepted 7,845-source, 6,709-document, 20,291-evidence manifest with 5,661 eligible, 11 operationally excluded, 2,173 unavailable, zero unverified evidence, and no synthetic evidence.
 - [ ] 1.3 Bind `m9-real-questions-v1` and its taxonomy to the manifest without changing case labels or expectations.
-- [ ] 1.4 Run and retain untouched SQLite and RDS 60-case quality baselines before schema indexes, ranking weights, or capacity are changed.
+- [ ] 1.4 Run and retain untouched SQLite and RDS 60-case quality baselines before ranking weights are changed.
 - [ ] 1.5 Label the 1,890-chunk 56/60 M9 report as historical partial-corpus evidence in every comparison and M10 summary.
 
 ## 2. Backend-neutral read boundary
@@ -33,16 +33,13 @@
 - [ ] 4.6 Run the shared adapter contract and full API suites against SQLite and an isolated PostgreSQL fixture before accessing production RDS.
 - [ ] 4.7 Create and validate the same-VPC ECS runtime privilege matrix: required reads pass; evidence, ingestion-state and schema writes plus role and unrelated-schema access fail.
 
-## 5. Bounded RDS retrieval and measured indexes
+## 5. Bounded RDS retrieval
 
 - [ ] 5.1 Implement PostgreSQL lexical and entity candidate queries with source, version, context, eligibility, and parsed-state filters pushed down.
 - [ ] 5.2 Preserve the initial 200 entity and 500 total rerank bounds and load vectors/entity annotations only for the bounded candidate union.
 - [ ] 5.3 Replace physical-row tie breaks with stable evidence ordering and preserve intent, endpoint coverage, source weighting, score components, and diversification semantics.
-- [ ] 5.4 Capture before-index `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`, recall, latency, buffer, relation-size, and index-size evidence for the versioned workload.
-- [ ] 5.5 Compare built-in text search and the actually available `pg_bigm`, `pg_jieba`, and `zhparser` strategies in a controlled migration without changing RDS capacity.
-- [ ] 5.6 Retain only the smallest index combination that meets quality and performance gates; remove unused experimental indexes and document rollback statements.
-- [ ] 5.7 Measure one representative synchronization after index selection and record import duration, connection use, index maintenance cost, counts, and fingerprint parity.
-- [ ] 5.8 Add regression tests and query-plan assertions proving interactive retrieval does not scan or deserialize the full evidence/vector corpus.
+- [ ] 5.4 Add the PostgreSQL indexes required by the selected functional lexical and entity queries, with idempotent migrations and rollback statements.
+- [ ] 5.5 Add regression tests proving interactive retrieval loads only the configured bounded candidate set rather than the full evidence/vector corpus.
 
 ## 6. SQLite/RDS shadow comparison
 
@@ -53,35 +50,26 @@
 
 ## 7. Complete-corpus quality acceptance
 
-- [ ] 7.1 Extend the evaluation report with backend, full manifest, per-case expected/retrieved stable evidence, direct-answer result, refusal, ambiguity, partial support, citation validation, latency, and failure owner.
+- [ ] 7.1 Extend the evaluation report with backend, full manifest, per-case expected/retrieved stable evidence, direct-answer result, refusal, ambiguity, partial support, citation validation, and failure owner.
 - [ ] 7.2 Run the frozen 60 questions on SQLite and RDS with model generation disabled and no infrastructure failures.
 - [ ] 7.3 Report Top 5 numerator/denominator and source breakdown, direct-answer correctness, refusal accuracy, ambiguity, factual citation coverage/support, and all failure classifications.
 - [ ] 7.4 Diagnose failures in corpus, parsing/chunking, entity/version, intent, retrieval, answer, and citation order before tuning ranking parameters.
 - [ ] 7.5 Correct justified defects with regression cases; if any label correction is required, version the dataset and rerun untouched baselines for both backends.
 - [ ] 7.6 Pass the hard gates: Top 5 at least 85%, direct-answer correctness at least 90% and within two points of SQLite, factual citation coverage/support 100%, and all labelled unanswerable cases correctly refused.
 
-## 8. Performance, memory, cold wake, and cost
+## 8. ECS rehearsal, rollback, and cutover
 
-- [ ] 8.1 Build a versioned harness for search, source, catalog, entity, relation, and ask endpoints with warm-up and at least 30 measured runs per class at concurrency 1 and 2.
-- [ ] 8.2 Record warm P50/P95, errors and timeouts; pass search P95 at most 5 seconds, ask P95 at most 8 seconds, and bounded actionable completion before the 25-second browser deadline.
-- [ ] 8.3 Measure process peak RSS and per-request RSS delta; pass peak below 1 GiB and delta below 256 MiB without recurrence of full-corpus vector loading.
-- [ ] 8.4 Measure automatic-pause wake separately from warm percentiles and verify a slow wake returns a sanitized retryable response before the browser deadline without a keepalive.
-- [ ] 8.5 Record pool occupancy, RDS sessions, query plans, index sizes, observation window, workload volume, automatic-pause state, 4-RCU cap, sanitized consumption, and observed cost.
-- [ ] 8.6 Diagnose failed gates with query/index evidence and bounded configuration changes; do not expand RDS capacity or upgrade ECS as an M10 shortcut.
+- [ ] 8.1 Update private deployment configuration and runbooks for the protected DSN, explicit backend flag, pool/timeouts, readiness, model-disabled state, and disabled `hksr-m7.timer`.
+- [ ] 8.2 Deploy the dual-backend-capable revision to ECS with SQLite still active and verify service, API/UI smoke, no secrets, and unchanged corpus state.
+- [ ] 8.3 Rehearse RDS selection, restart, readiness, fixed browse/ask smoke cases, and application operation without the SQLite evidence file.
+- [ ] 8.4 Explicitly rollback to SQLite by configuration and restart, rerun readiness and smoke, and prove that neither backend, OSS, model state, nor collection state was mutated.
+- [ ] 8.5 Present the complete shadow, quality, privilege, and rollback evidence for explicit production-cutover approval.
+- [ ] 8.6 After approval, switch the private application to RDS, restart, rerun smoke and hard gates, retain the accepted SQLite snapshot, and stop on any mismatch without silent fallback.
 
-## 9. ECS rehearsal, rollback, and cutover
+## 9. Final verification and handoff
 
-- [ ] 9.1 Update private deployment configuration and runbooks for the protected DSN, explicit backend flag, pool/timeouts, readiness, model-disabled state, and disabled `hksr-m7.timer`.
-- [ ] 9.2 Deploy the dual-backend-capable revision to ECS with SQLite still active and verify service, API/UI smoke, no secrets, and unchanged corpus state.
-- [ ] 9.3 Rehearse RDS selection, restart, readiness, fixed browse/ask smoke cases, cold/warm behavior, and application operation without the SQLite evidence file.
-- [ ] 9.4 Explicitly rollback to SQLite by configuration and restart, rerun readiness and smoke, and prove that neither backend, OSS, model state, nor collection state was mutated.
-- [ ] 9.5 Present the complete shadow, quality, performance, memory, cost, privilege, and rollback evidence for explicit production-cutover approval.
-- [ ] 9.6 After approval, switch the private application to RDS, restart, rerun smoke and hard gates, retain the accepted SQLite snapshot, and stop on any mismatch without silent fallback.
-
-## 10. Final verification and handoff
-
-- [ ] 10.1 Run focused migration/adapter/retrieval/evaluation/deployment tests and the full local offline suite.
-- [ ] 10.2 Run the corresponding ECS integration and 60-case acceptance suites with the production read role and model generation disabled.
-- [ ] 10.3 Run strict OpenSpec validation, `git diff --check`, credential/private-identifier scans, generated/runtime-data review, and a scoped Git diff review.
-- [ ] 10.4 Confirm the application is active on the approved backend, RDS remains at or below 4 RCU with automatic pause, model generation is disabled, and `hksr-m7.timer` is disabled.
-- [ ] 10.5 Publish sanitized JSON/Markdown acceptance and rollback reports with commit revision, corpus fingerprint, exact denominators, unresolved failures, cost window, and commands required to reproduce the result.
+- [ ] 9.1 Run focused migration/adapter/retrieval/evaluation/deployment tests and the full local offline suite.
+- [ ] 9.2 Run the corresponding ECS integration and 60-case acceptance suites with the production read role and model generation disabled.
+- [ ] 9.3 Run strict OpenSpec validation, `git diff --check`, credential/private-identifier scans, generated/runtime-data review, and a scoped Git diff review.
+- [ ] 9.4 Confirm the application is active on the approved backend, model generation is disabled, and `hksr-m7.timer` is disabled.
+- [ ] 9.5 Publish sanitized JSON/Markdown acceptance and rollback reports with commit revision, corpus fingerprint, exact denominators, unresolved failures, and commands required to reproduce the result.

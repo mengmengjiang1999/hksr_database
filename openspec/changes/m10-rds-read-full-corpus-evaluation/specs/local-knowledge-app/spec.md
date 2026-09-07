@@ -10,8 +10,8 @@ Search results, source details, catalog metadata, entity details, relation cards
 ### Requirement: Bounded interactive retrieval
 The private application MUST prevent overlapping interactive retrieval from exhausting the service, MUST bound database acquisition and statement execution, and MUST terminate the browser loading state after a finite request deadline on either backend.
 
-#### Scenario: RDS retrieval capacity is occupied or waking
-- **WHEN** a request cannot obtain capacity or finish within the configured deadline
+#### Scenario: RDS connection is unavailable
+- **WHEN** a request cannot obtain a database connection or finish within the configured deadline
 - **THEN** the API returns a retryable busy or unavailable response and the browser renders an actionable error before 25 seconds instead of loading indefinitely
 
 ## ADDED Requirements
