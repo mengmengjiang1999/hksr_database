@@ -202,12 +202,12 @@ class MigrationAndFixtureTests(unittest.TestCase):
         self.assertEqual(
             [path.name for path in files],
             ["001_core.sql", "002_validation.sql", "003_real_evidence_import.sql",
-             "004_m7_import_batches.sql"],
+             "004_m7_import_batches.sql", "005_m10_read_runtime.sql"],
         )
         self.assertEqual(
             [path.name for path in migration_plan(["001_core.sql"])],
             ["002_validation.sql", "003_real_evidence_import.sql",
-             "004_m7_import_batches.sql"],
+             "004_m7_import_batches.sql", "005_m10_read_runtime.sql"],
         )
         combined = "\n".join(path.read_text(encoding="utf-8") for path in files).lower()
         self.assertIn("create table if not exists", combined)
@@ -309,13 +309,13 @@ class MigrationAndFixtureTests(unittest.TestCase):
                     ('{"version": 2}',),
                 )
             second = read_official_sqlite_snapshot(path)
-            self.assertEqual(first["source_fingerprint"], second["source_fingerprint"])
+            self.assertNotEqual(first["source_fingerprint"], second["source_fingerprint"])
             self.assertEqual(first["counts"]["sources"], 1)
             self.assertEqual(first["counts"]["official_evidence"], 1)
             self.assertEqual(first["counts"]["chunk_vectors"], 1)
             self.assertEqual(first["counts"]["retrieval_metadata"], 1)
-            self.assertNotIn("chunk_vectors", first["tables"])
-            self.assertNotIn("retrieval_metadata", first["tables"])
+            self.assertIn("chunk_vectors", first["tables"])
+            self.assertIn("retrieval_metadata", first["tables"])
             self.assertEqual(first["evidence_ids"], [evidence_id])
 
     def test_m6a_estimate_is_loaded_by_chunk_scenario(self) -> None:

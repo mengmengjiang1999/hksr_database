@@ -282,6 +282,9 @@ def stable_evidence_id(
 
 
 class Database:
+    backend_name = "sqlite"
+    mutable = True
+
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
         self._retrieval_metadata_cache: Optional[Dict[str, Any]] = None
@@ -476,7 +479,7 @@ class Database:
                 SELECT e.id, e.canonical_name, e.entity_type, e.description,
                        a.alias, a.alias_type
                 FROM entities e LEFT JOIN aliases a ON a.entity_id = e.id
-                ORDER BY e.id, a.id
+                ORDER BY e.id, a.alias
                 """
             ).fetchall()
         output: Dict[int, Dict[str, Any]] = {}
@@ -629,12 +632,23 @@ class Database:
         return output
 
     def entity_chunk_ids(
-        self, entity_ids: Sequence[int], limit: int = 200
+        self, entity_ids: Sequence[int], limit: int = 200,
+        source_kinds: Optional[Sequence[str]] = None, version: Optional[str] = None,
     ) -> List[int]:
         selected_ids = list(dict.fromkeys(int(entity_id) for entity_id in entity_ids))
         if not selected_ids or limit <= 0:
             return []
         placeholders = ",".join("?" for _ in selected_ids)
+        filters = ["ec.entity_id IN (%s)" % placeholders,
+                   "d.evidence_eligible = 1", "s.status = 'parsed'"]
+        parameters: List[Any] = list(selected_ids)
+        if source_kinds:
+            kind_placeholders = ",".join("?" for _ in source_kinds)
+            filters.append("s.source_kind IN (%s)" % kind_placeholders)
+            parameters.extend(source_kinds)
+        if version is not None:
+            filters.append("COALESCE(s.version, '') = ?")
+            parameters.append(str(version))
         with self.connect() as connection:
             rows = connection.execute(
                 """
@@ -643,14 +657,12 @@ class Database:
                 JOIN chunks c ON c.id = ec.chunk_id
                 JOIN documents d ON d.id = c.document_id
                 JOIN sources s ON s.id = d.source_id
-                WHERE ec.entity_id IN (%s)
-                  AND d.evidence_eligible = 1
-                  AND s.status = 'parsed'
+                WHERE %s
                 GROUP BY ec.chunk_id
                 ORDER BY matched_entities DESC, ec.chunk_id
                 LIMIT ?
-                """ % placeholders,
-                [*selected_ids, int(limit)],
+                """ % " AND ".join(filters),
+                [*parameters, int(limit)],
             ).fetchall()
         return [int(row["chunk_id"]) for row in rows]
 
@@ -1236,6 +1248,166 @@ class Database:
             raise KeyError("Unknown source id: %d" % source_id)
         return row
 
+    def source_detail(self, source_id: int) -> Dict[str, Any]:
+        source = self.get_source(source_id)
+        with self.connect() as connection:
+            documents = connection.execute(
+                """SELECT id, document_key, title, section_path, content_type, position,
+                          evidence_eligible, metadata_json
+                   FROM documents WHERE source_id = ? ORDER BY position""",
+                (source_id,),
+            ).fetchall()
+            output = []
+            for document in documents:
+                item = dict(document)
+                item["chunk_count"] = int(connection.execute(
+                    "SELECT COUNT(*) FROM chunks WHERE document_id = ?", (document["id"],)
+                ).fetchone()[0])
+                output.append(item)
+        allowed = (
+            "id", "provider", "external_id", "source_kind", "page_url", "title",
+            "version", "remote_created_at", "remote_updated_at", "official_status",
+            "status", "fetched_at", "parsed_at", "last_error",
+        )
+        return {"source": {key: source[key] for key in allowed}, "documents": output}
+
+    def identity_rows(self) -> Dict[str, List[Dict[str, Any]]]:
+        self.initialize()
+        with self.connect() as connection:
+            return {
+                "people": [dict(row) for row in connection.execute(
+                    "SELECT * FROM narrative_people ORDER BY canonical_name"
+                )],
+                "forms": [dict(row) for row in connection.execute(
+                    """SELECT * FROM playable_forms ORDER BY narrative_person_key,
+                       CASE form_kind WHEN 'base' THEN 0 ELSE 1 END, canonical_name"""
+                )],
+                "names": [dict(row) for row in connection.execute(
+                    "SELECT * FROM identity_names ORDER BY owner_kind, owner_key, name_type, name"
+                )],
+            }
+
+    def relation_audit(self, *, update: bool = False) -> Dict[str, Any]:
+        current = self.evidence_ids()
+        stale_ids = []
+        with self.connect() as connection:
+            relations = connection.execute("SELECT id FROM relations ORDER BY id").fetchall()
+            for relation in relations:
+                evidence = connection.execute(
+                    "SELECT evidence_id FROM relation_evidence WHERE relation_id = ?",
+                    (relation["id"],),
+                ).fetchall()
+                stale = not evidence or any(row["evidence_id"] not in current for row in evidence)
+                if update:
+                    connection.execute(
+                        "UPDATE relations SET is_stale = ? WHERE id = ?",
+                        (int(stale), relation["id"]),
+                    )
+                if stale:
+                    stale_ids.append(int(relation["id"]))
+        return {"relations": len(relations), "stale": len(stale_ids), "stale_ids": stale_ids}
+
+    def relation_rows(
+        self, entity_name: Optional[str] = None, *, include_candidates: bool = False
+    ) -> List[Dict[str, Any]]:
+        query = """
+            SELECT r.*, s.canonical_name AS subject_name, s.entity_type AS subject_type,
+                   o.canonical_name AS object_name, o.entity_type AS object_type
+            FROM relations r
+            JOIN entities s ON s.id = r.subject_id
+            JOIN entities o ON o.id = r.object_id
+            WHERE 1 = 1
+        """
+        parameters: List[Any] = []
+        query += (
+            " AND r.review_status IN ('approved', 'pending')"
+            if include_candidates else " AND r.review_status = 'approved'"
+        )
+        if entity_name:
+            query += " AND (s.canonical_name = ? OR o.canonical_name = ?)"
+            parameters.extend([entity_name, entity_name])
+        query += " ORDER BY r.review_status, s.canonical_name, r.predicate, o.canonical_name"
+        with self.connect() as connection:
+            relations = [dict(row) for row in connection.execute(query, parameters).fetchall()]
+            for relation in relations:
+                relation["evidence_ids"] = [
+                    row["evidence_id"] for row in connection.execute(
+                        "SELECT evidence_id FROM relation_evidence WHERE relation_id = ? ORDER BY evidence_id",
+                        (relation["id"],),
+                    ).fetchall()
+                ]
+        return relations
+
+    def approved_relation_evidence_ids(self, left: int, right: int) -> set[str]:
+        with self.connect() as connection:
+            return {
+                str(row["evidence_id"]) for row in connection.execute(
+                    """SELECT re.evidence_id FROM relations r
+                       JOIN relation_evidence re ON re.relation_id=r.id
+                       WHERE r.review_status='approved' AND r.is_stale=0
+                         AND ((r.subject_id=? AND r.object_id=?) OR
+                              (r.subject_id=? AND r.object_id=?))""",
+                    (left, right, right, left),
+                )
+            }
+
+    def corpus_snapshot_rows(self) -> Dict[str, Any]:
+        self.initialize()
+        with self.connect() as connection:
+            return {
+                "sources": [dict(row) for row in connection.execute(
+                    """SELECT provider, external_id, source_kind, status, official_status,
+                              COALESCE(version, '') AS version,
+                              COALESCE(content_sha256, '') AS content_sha256
+                       FROM sources ORDER BY provider, external_id"""
+                )],
+                "documents": [dict(row) for row in connection.execute(
+                    """SELECT s.provider, s.external_id, d.document_key, d.evidence_eligible
+                       FROM documents d JOIN sources s ON s.id = d.source_id
+                       ORDER BY s.provider, s.external_id, d.document_key"""
+                )],
+                "chunks": [dict(row) for row in connection.execute(
+                    """SELECT s.provider, s.external_id, d.document_key, c.chunk_key,
+                              c.content_sha256, d.evidence_eligible, s.status
+                       FROM chunks c JOIN documents d ON d.id = c.document_id
+                       JOIN sources s ON s.id = d.source_id
+                       ORDER BY s.provider, s.external_id, d.document_key, c.chunk_key"""
+                )],
+                "entities": [dict(row) for row in connection.execute(
+                    """SELECT canonical_name, entity_type, description
+                       FROM entities ORDER BY entity_type, canonical_name"""
+                )],
+                "aliases": [dict(row) for row in connection.execute(
+                    """SELECT e.canonical_name, e.entity_type, a.alias, a.alias_type
+                       FROM aliases a JOIN entities e ON e.id = a.entity_id
+                       ORDER BY e.entity_type, e.canonical_name, a.alias"""
+                )],
+                "relations": [dict(row) for row in connection.execute(
+                    """SELECT se.canonical_name AS subject, r.predicate,
+                              oe.canonical_name AS object, r.evidence_level,
+                              r.review_status, r.is_stale
+                       FROM relations r JOIN entities se ON se.id = r.subject_id
+                       JOIN entities oe ON oe.id = r.object_id
+                       ORDER BY subject, r.predicate, object"""
+                )],
+                "semantic_vectors": int(connection.execute(
+                    "SELECT COUNT(*) FROM chunk_vectors"
+                ).fetchone()[0]),
+            }
+
+    def source_disposition_rows(self) -> List[Dict[str, Any]]:
+        self.initialize()
+        with self.connect() as connection:
+            return [dict(row) for row in connection.execute(
+                """SELECT s.provider, s.external_id, sd.disposition, sd.reason,
+                          sd.classifier_version, sd.verified
+                   FROM source_dispositions sd JOIN sources s ON s.id=sd.source_id
+                   ORDER BY s.provider, s.external_id"""
+            )]
+
+    def readiness(self) -> Dict[str, Any]:
+        return {"backend": self.backend_name, "ready": True, "mutable": self.mutable}
+
     def record_fetch(
         self,
         source_id: int,
@@ -1447,10 +1619,22 @@ class Database:
         with self.connect() as connection:
             return self._reset_fts(connection)
 
-    def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def search(
+        self, query: str, limit: int = 10,
+        source_kinds: Optional[Sequence[str]] = None, version: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         if not query.strip():
             return []
         fts_query = '"%s"' % query.replace('"', '""')
+        filters = ["s.status = 'parsed'"]
+        filter_parameters: List[Any] = []
+        if source_kinds:
+            placeholders = ",".join("?" for _ in source_kinds)
+            filters.append("s.source_kind IN (%s)" % placeholders)
+            filter_parameters.extend(source_kinds)
+        if version is not None:
+            filters.append("COALESCE(s.version, '') = ?")
+            filter_parameters.append(str(version))
         with self.connect() as connection:
             exists = connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'chunks_fts'"
@@ -1465,11 +1649,11 @@ class Database:
                         bm25(chunks_fts) AS score, s.title, s.page_url, s.source_kind
                     FROM chunks_fts f
                     JOIN sources s ON s.id = f.source_id
-                    WHERE chunks_fts MATCH ? AND s.status = 'parsed'
+                    WHERE chunks_fts MATCH ? AND %s
                     ORDER BY score
                     LIMIT ?
-                    """,
-                    (fts_query, limit),
+                    """ % " AND ".join(filters),
+                    (fts_query, *filter_parameters, limit),
                 ).fetchall()
             except sqlite3.OperationalError:
                 # Trigram FTS cannot match terms shorter than three characters.
@@ -1488,7 +1672,7 @@ class Database:
                     JOIN documents d ON d.id = c.document_id
                     JOIN sources s ON s.id = d.source_id
                     WHERE d.evidence_eligible = 1
-                      AND s.status = 'parsed'
+                      AND %s
                       AND (
                           c.text LIKE ? ESCAPE '\\'
                           OR c.section_path LIKE ? ESCAPE '\\'
@@ -1496,8 +1680,8 @@ class Database:
                       )
                     ORDER BY c.id
                     LIMIT ?
-                    """,
-                    (pattern, pattern, pattern, limit),
+                    """ % " AND ".join(filters),
+                    (pattern, pattern, pattern, *filter_parameters, limit),
                 ).fetchall()
             return [dict(row) for row in rows]
 

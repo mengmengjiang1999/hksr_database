@@ -12,6 +12,7 @@ dependencies = [
 [project.optional-dependencies]
 cloud = [
     "psycopg[binary]>=3.2,<4",
+    "psycopg-pool>=3.2,<4",
 ]
 oss = [
     "oss2>=2.19,<3",

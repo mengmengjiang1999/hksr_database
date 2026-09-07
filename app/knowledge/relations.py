@@ -171,24 +171,7 @@ def build_relations(database: Database, catalogue_path: Path) -> Dict[str, Any]:
 
 
 def audit_relations(database: Database, update: bool = True) -> Dict[str, Any]:
-    current = database.evidence_ids()
-    stale_ids = []
-    with database.connect() as connection:
-        relation_rows = connection.execute("SELECT id FROM relations ORDER BY id").fetchall()
-        for relation in relation_rows:
-            evidence = connection.execute(
-                "SELECT evidence_id FROM relation_evidence WHERE relation_id = ?",
-                (relation["id"],),
-            ).fetchall()
-            stale = not evidence or any(item["evidence_id"] not in current for item in evidence)
-            if update:
-                connection.execute(
-                    "UPDATE relations SET is_stale = ? WHERE id = ?",
-                    (int(stale), relation["id"]),
-                )
-            if stale:
-                stale_ids.append(int(relation["id"]))
-    return {"relations": len(relation_rows), "stale": len(stale_ids), "stale_ids": stale_ids}
+    return database.relation_audit(update=update)
 
 
 def list_relations(
@@ -197,35 +180,11 @@ def list_relations(
     include_candidates: bool = False,
 ) -> List[Dict[str, Any]]:
     stale_ids = set(audit_relations(database, update=False)["stale_ids"])
-    query = """
-        SELECT r.*, s.canonical_name AS subject_name, s.entity_type AS subject_type,
-               o.canonical_name AS object_name, o.entity_type AS object_type
-        FROM relations r
-        JOIN entities s ON s.id = r.subject_id
-        JOIN entities o ON o.id = r.object_id
-        WHERE 1 = 1
-    """
-    parameters: List[Any] = []
-    if include_candidates:
-        query += " AND r.review_status IN ('approved', 'pending')"
-    else:
-        query += " AND r.review_status = 'approved'"
-    if entity_name:
-        query += " AND (s.canonical_name = ? OR o.canonical_name = ?)"
-        parameters.extend([entity_name, entity_name])
-    query += " ORDER BY r.review_status, s.canonical_name, r.predicate, o.canonical_name"
-    with database.connect() as connection:
-        relations = connection.execute(query, parameters).fetchall()
-        relation_evidence = {
-            int(relation["id"]): [
-                item["evidence_id"] for item in connection.execute(
-                    "SELECT evidence_id FROM relation_evidence WHERE relation_id = ? "
-                    "ORDER BY evidence_id",
-                    (relation["id"],),
-                ).fetchall()
-            ]
-            for relation in relations
-        }
+    relations = database.relation_rows(entity_name, include_candidates=include_candidates)
+    relation_evidence = {
+        int(relation["id"]): list(relation.pop("evidence_ids")) for relation in relations
+    }
+    if relations:
         requested_evidence_ids = [
             evidence_id
             for evidence in relation_evidence.values()
@@ -235,28 +194,30 @@ def list_relations(
             item["evidence_id"]: item
             for item in database.retrieval_rows_by_evidence_ids(requested_evidence_ids)
         }
-        output = []
-        for relation in relations:
-            if int(relation["id"]) in stale_ids:
-                continue
-            citations = []
-            for evidence_id in relation_evidence[int(relation["id"])]:
-                evidence = rows_by_evidence.get(evidence_id)
-                if evidence:
-                    citations.append({
-                        "evidence_id": evidence["evidence_id"], "quote": evidence["text"],
-                        "source_title": evidence["title"], "source_kind": evidence["source_kind"],
-                        "url": evidence["page_url"], "section_path": evidence["section_path"],
-                        "version": evidence["version"],
-                        "context_type": source_context(evidence["source_kind"]),
-                    })
-            item = dict(relation)
-            item["direction"] = (
-                "outgoing" if entity_name == item["subject_name"] else
-                "incoming" if entity_name == item["object_name"] else "subject_to_object"
-            )
-            item["citations"] = citations
-            output.append(item)
+    else:
+        rows_by_evidence = {}
+    output = []
+    for relation in relations:
+        if int(relation["id"]) in stale_ids:
+            continue
+        citations = []
+        for evidence_id in relation_evidence[int(relation["id"])]:
+            evidence = rows_by_evidence.get(evidence_id)
+            if evidence:
+                citations.append({
+                    "evidence_id": evidence["evidence_id"], "quote": evidence["text"],
+                    "source_title": evidence["title"], "source_kind": evidence["source_kind"],
+                    "url": evidence["page_url"], "section_path": evidence["section_path"],
+                    "version": evidence["version"],
+                    "context_type": source_context(evidence["source_kind"]),
+                })
+        item = dict(relation)
+        item["direction"] = (
+            "outgoing" if entity_name == item["subject_name"] else
+            "incoming" if entity_name == item["object_name"] else "subject_to_object"
+        )
+        item["citations"] = citations
+        output.append(item)
     return output
 
 

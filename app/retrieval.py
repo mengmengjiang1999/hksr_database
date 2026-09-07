@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import math
 import re
-import sqlite3
 import tempfile
 import unicodedata
 from collections import Counter
@@ -220,18 +219,28 @@ def hybrid_search(
     )
     query_vector = _tfidf(semantic_terms(expanded_query), idf)
     lexical_terms = _lexical_terms(query, matched_entities)
+    candidate_source_kinds = list(source_kinds or [])
+    if contexts:
+        context_kinds = [
+            str(item["value"]) for item in database.catalog_metadata()["source_kinds"]
+            if source_context(str(item["value"])) in contexts
+        ]
+        candidate_source_kinds = (
+            [kind for kind in candidate_source_kinds if kind in context_kinds]
+            if candidate_source_kinds else context_kinds
+        )
     lexical_denominator = float(sum(len(term) ** 2 for term in lexical_terms)) or 1.0
     fts_scores: Dict[int, float] = {}
     for term in [item for item in lexical_terms if len(item) >= 2][:12]:
-        try:
-            fts_results = database.search(term, limit=100)
-        except sqlite3.OperationalError:
-            continue
+        fts_results = database.search(
+            term, limit=100, source_kinds=candidate_source_kinds or None, version=version
+        )
         for rank, result in enumerate(fts_results, start=1):
             chunk_id = int(result["chunk_id"])
             fts_scores[chunk_id] = fts_scores.get(chunk_id, 0.0) + 1.0 / (20.0 + rank)
     entity_candidate_ids = database.entity_chunk_ids(
-        sorted(matched_entity_ids), limit=MAX_ENTITY_CANDIDATES
+        sorted(matched_entity_ids), limit=MAX_ENTITY_CANDIDATES,
+        source_kinds=candidate_source_kinds or None, version=version,
     )
     candidate_ids = list(entity_candidate_ids)
     seen_candidate_ids = set(candidate_ids)
@@ -367,17 +376,7 @@ def intent_search(
         return {"status": "insufficient_endpoints", "query_plan": plan, "results": results,
                 "answerable_results": []}
     left, right = int(endpoints[0]["entity_id"]), int(endpoints[1]["entity_id"])
-    with database.connect() as connection:
-        approved_evidence = {
-            row["evidence_id"] for row in connection.execute(
-                """SELECT re.evidence_id FROM relations r
-                   JOIN relation_evidence re ON re.relation_id=r.id
-                   WHERE r.review_status='approved' AND r.is_stale=0
-                     AND ((r.subject_id=? AND r.object_id=?) OR
-                          (r.subject_id=? AND r.object_id=?))""",
-                (left, right, right, left),
-            )
-        }
+    approved_evidence = database.approved_relation_evidence_ids(left, right)
     qualified = []
     for result in results:
         row_entities = {int(item["id"]) for item in result["entities"]}

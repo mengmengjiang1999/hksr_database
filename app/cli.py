@@ -40,6 +40,8 @@ from app.collectors import (
     write_report as write_m7_report,
 )
 from app.models.database import Database
+from app.models import PostgresReadStore
+from app.m10 import build_manifest, compare_reports, run_quality, write_markdown_report
 from app.knowledge import (
     audit_identity_catalog,
     audit_relations,
@@ -73,6 +75,7 @@ DEFAULT_M7_LOCK = Path("data/m7/collector.lock")
 DEFAULT_M9_TAXONOMY = Path("data/m9/question-taxonomy.json")
 DEFAULT_M9_EVALUATION = Path("data/m9/real-questions.json")
 DEFAULT_M9_IDENTITIES = Path("data/m9/identities.json")
+DEFAULT_M10_ROOT = Path("data/m10")
 
 
 def _print(value: object) -> None:
@@ -156,6 +159,34 @@ def build_parser() -> argparse.ArgumentParser:
         "m9-identities", help="List narrative people and playable forms"
     )
     list_identities.add_argument("--include-pending", action="store_true")
+
+    m10_manifest = subparsers.add_parser(
+        "m10-manifest", help="Build the frozen, secret-safe complete-corpus manifest"
+    )
+    m10_manifest.add_argument("--backend", choices=("sqlite", "postgres"), default="sqlite")
+    m10_manifest.add_argument("--dataset", type=Path, default=DEFAULT_M9_EVALUATION)
+    m10_manifest.add_argument("--taxonomy", type=Path, default=DEFAULT_M9_TAXONOMY)
+    m10_manifest.add_argument("--revision", default="unknown")
+    m10_manifest.add_argument("--output", type=Path)
+
+    m10_evaluate = subparsers.add_parser(
+        "m10-evaluate", help="Run deterministic complete-corpus quality acceptance"
+    )
+    m10_evaluate.add_argument("--backend", choices=("sqlite", "postgres"), default="sqlite")
+    m10_evaluate.add_argument("--dataset", type=Path, default=DEFAULT_M9_EVALUATION)
+    m10_evaluate.add_argument("--taxonomy", type=Path, default=DEFAULT_M9_TAXONOMY)
+    m10_evaluate.add_argument("--limit", type=int, default=8)
+    m10_evaluate.add_argument("--output", type=Path)
+    m10_evaluate.add_argument("--markdown", type=Path)
+
+    m10_shadow = subparsers.add_parser(
+        "m10-shadow", help="Compare the fixed workload against SQLite and PostgreSQL"
+    )
+    m10_shadow.add_argument("--dataset", type=Path, default=DEFAULT_M9_EVALUATION)
+    m10_shadow.add_argument("--taxonomy", type=Path, default=DEFAULT_M9_TAXONOMY)
+    m10_shadow.add_argument("--limit", type=int, default=8)
+    m10_shadow.add_argument("--output", type=Path)
+    m10_shadow.add_argument("--markdown", type=Path)
 
     build_relation_parser = subparsers.add_parser(
         "build-relations", help="Import curated relations and generate candidates"
@@ -351,8 +382,23 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     arguments = build_parser().parse_args(argv)
+    if arguments.command == "serve":
+        try:
+            import uvicorn
+            from app.api.main import create_app
+        except ImportError as error:
+            raise SystemExit(
+                "Web dependencies are missing; install the project dependencies first"
+            ) from error
+        uvicorn.run(
+            create_app(database_path=arguments.database),
+            host=arguments.host,
+            port=arguments.port,
+        )
+        return 0
     database = Database(arguments.database)
     database.initialize()
+    exit_code = 0
 
     if arguments.command == "discover":
         result = {}
@@ -462,20 +508,61 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "retrieval": build_retrieval_index(database, arguments.entities),
             "relations": build_relations(database, arguments.relations),
         }
-    elif arguments.command == "serve":
+    elif arguments.command in {"m10-manifest", "m10-evaluate", "m10-shadow"}:
+        postgres = None
         try:
-            import uvicorn
-            from app.api.main import create_app
-        except ImportError as error:
-            raise SystemExit(
-                "Web dependencies are missing; install the project dependencies first"
-            ) from error
-        uvicorn.run(
-            create_app(database_path=arguments.database),
-            host=arguments.host,
-            port=arguments.port,
-        )
-        return 0
+            if arguments.command == "m10-shadow" or arguments.backend == "postgres":
+                postgres = PostgresReadStore(CloudDatabaseConfig.from_environment().dsn)
+                postgres.initialize()
+            if arguments.command == "m10-manifest":
+                store = postgres if arguments.backend == "postgres" else database
+                result = build_manifest(
+                    store, arguments.dataset, arguments.taxonomy, revision=arguments.revision
+                )
+                exit_code = 0 if result["accepted_m7_snapshot"]["passed"] else 2
+            elif arguments.command == "m10-evaluate":
+                store = postgres if arguments.backend == "postgres" else database
+                manifest = build_manifest(store, arguments.dataset, arguments.taxonomy)
+                result = run_quality(
+                    store, arguments.dataset, arguments.taxonomy,
+                    limit=arguments.limit, manifest=manifest,
+                )
+                exit_code = 0 if (
+                    manifest["accepted_m7_snapshot"]["passed"]
+                    and result["quality_gates"]["passed"]
+                ) else 2
+            else:
+                sqlite_manifest = build_manifest(database, arguments.dataset, arguments.taxonomy)
+                postgres_manifest = build_manifest(postgres, arguments.dataset, arguments.taxonomy)
+                sqlite_report = run_quality(
+                    database, arguments.dataset, arguments.taxonomy,
+                    limit=arguments.limit, manifest=sqlite_manifest,
+                )
+                postgres_report = run_quality(
+                    postgres, arguments.dataset, arguments.taxonomy,
+                    limit=arguments.limit, manifest=postgres_manifest,
+                    sqlite_baseline=sqlite_report,
+                )
+                result = compare_reports(sqlite_report, postgres_report)
+                result["manifests_accepted"] = bool(
+                    sqlite_manifest["accepted_m7_snapshot"]["passed"]
+                    and postgres_manifest["accepted_m7_snapshot"]["passed"]
+                )
+                result["sqlite_quality_gates"] = sqlite_report["quality_gates"]
+                result["postgres_quality_gates"] = postgres_report["quality_gates"]
+                result["passed"] = bool(
+                    result["passed"] and result["manifests_accepted"]
+                    and postgres_report["quality_gates"]["passed"]
+                )
+                exit_code = 0 if result["passed"] else 2
+            if arguments.output:
+                write_json_report(arguments.output, result)
+            markdown = getattr(arguments, "markdown", None)
+            if markdown:
+                write_markdown_report(markdown, "M10 RDS 读取验收", result)
+        finally:
+            if postgres is not None:
+                postgres.close()
     elif arguments.command == "capacity-report":
         result = build_capacity_report(
             arguments.database, arguments.raw_root, arguments.assumptions
@@ -621,7 +708,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     else:
         raise AssertionError("Unhandled command")
     _print(result)
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

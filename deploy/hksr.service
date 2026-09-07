@@ -7,7 +7,12 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=%h/hksr_database
 Environment=PYTHONUNBUFFERED=1
-ExecStart=%h/hksr_database/.venv/bin/python -m app.cli serve --host 127.0.0.1 --port 8000
+Environment=HKSR_PROJECT_DIR=%h/hksr_database
+Environment=HKSR_POSTGRES_POOL_MAX=2
+Environment=HKSR_POSTGRES_ACQUIRE_TIMEOUT=5
+Environment=HKSR_POSTGRES_CONNECT_TIMEOUT=10
+Environment=HKSR_POSTGRES_STATEMENT_TIMEOUT_MS=15000
+ExecStart=%h/hksr_database/deploy/run-hksr-app.sh
 Restart=on-failure
 RestartSec=3
 

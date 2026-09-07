@@ -26,7 +26,7 @@ from urllib.parse import urlsplit
 DSN_ENVIRONMENT_VARIABLE = "HKSR_POSTGRES_DSN"
 REQUIRED_EXTENSIONS = ("vector", "pg_jieba", "zhparser", "pg_bigm")
 RUN_ID_PATTERN = re.compile(r"^m6b-[a-z0-9][a-z0-9-]{2,59}$")
-REAL_BATCH_ID_PATTERN = re.compile(r"^m(?:6b|7)-real-[a-z0-9][a-z0-9-]{2,59}$")
+REAL_BATCH_ID_PATTERN = re.compile(r"^m(?:6b|7|10)-real-[a-z0-9][a-z0-9-]{2,59}$")
 MIGRATIONS_ROOT = Path(__file__).resolve().parents[2] / "migrations" / "postgres"
 M6A_REPORT_PATH = Path(__file__).resolve().parents[2] / "data" / "m6a" / "validation-report.json"
 M6B_DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "m6b"
@@ -59,7 +59,7 @@ def validate_run_id(run_id: str) -> str:
 def validate_real_batch_id(batch_id: str) -> str:
     if not REAL_BATCH_ID_PATTERN.fullmatch(batch_id):
         raise ValueError(
-            "batch_id must match m6b-real-* or m7-real-*"
+            "batch_id must match m6b-real-*, m7-real-*, or m10-real-*"
         )
     return batch_id
 
@@ -337,9 +337,10 @@ def stable_postgres_evidence_id(
 
 SQLITE_IMPORT_TABLES = (
     "sources", "documents", "chunks", "entities", "aliases", "entity_chunks",
-    "relations", "relation_evidence",
+    "chunk_vectors", "retrieval_metadata", "relations", "relation_evidence",
+    "source_dispositions", "narrative_people", "playable_forms", "identity_names",
 )
-SQLITE_DEFERRED_RETRIEVAL_TABLES = ("chunk_vectors", "retrieval_metadata")
+SQLITE_DEFERRED_RETRIEVAL_TABLES: Tuple[str, ...] = ()
 
 
 def read_official_sqlite_snapshot(path: Path) -> Dict[str, Any]:
@@ -516,11 +517,12 @@ def import_official_sqlite(
             }, ensure_ascii=False, sort_keys=True)
             postgres_id = connection.execute(
                 """INSERT INTO hksr.sources
-                       (provider, external_id, source_kind, page_url, title, version,
+                       (sqlite_id, provider, external_id, source_kind, page_url, title, version,
                         official_status, status, content_sha256, metadata,
                         discovered_at, fetched_at, parsed_at)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s)
                    ON CONFLICT (provider, external_id) DO UPDATE SET
+                     sqlite_id = EXCLUDED.sqlite_id,
                      source_kind = EXCLUDED.source_kind,
                      page_url = EXCLUDED.page_url,
                      title = EXCLUDED.title,
@@ -534,7 +536,7 @@ def import_official_sqlite(
                      parsed_at = EXCLUDED.parsed_at
                    RETURNING id""",
                 (
-                    row["provider"], row["external_id"], row["source_kind"],
+                    row["id"], row["provider"], row["external_id"], row["source_kind"],
                     row["page_url"], row["title"], row["version"],
                     row["official_status"], row["status"], row.get("content_sha256"),
                     metadata, row["discovered_at"], row["fetched_at"], row["parsed_at"],
@@ -547,10 +549,11 @@ def import_official_sqlite(
         for row in tables["documents"]:
             postgres_id = connection.execute(
                 """INSERT INTO hksr.documents
-                       (source_id, document_key, title, section_path, content_type,
+                       (sqlite_id, source_id, document_key, title, section_path, content_type,
                         position, evidence_eligible, metadata)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
                    ON CONFLICT (source_id, document_key) DO UPDATE SET
+                     sqlite_id = EXCLUDED.sqlite_id,
                      title = EXCLUDED.title,
                      section_path = EXCLUDED.section_path,
                      content_type = EXCLUDED.content_type,
@@ -559,7 +562,7 @@ def import_official_sqlite(
                      metadata = EXCLUDED.metadata
                    RETURNING id""",
                 (
-                    source_ids[int(row["source_id"])], row["document_key"], row["title"],
+                    row["id"], source_ids[int(row["source_id"])], row["document_key"], row["title"],
                     row["section_path"], row["content_type"], row["position"],
                     bool(row["evidence_eligible"]),
                     _validated_json_text(row["metadata_json"], field="documents.metadata_json"),
@@ -580,10 +583,11 @@ def import_official_sqlite(
             )
             postgres_id = connection.execute(
                 """INSERT INTO hksr.chunks
-                       (document_id, chunk_key, evidence_id, section_path, speaker,
+                       (sqlite_id, document_id, chunk_key, evidence_id, section_path, speaker,
                         text, position, content_sha256, metadata, embedding, synthetic)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,NULL,false)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,NULL,false)
                    ON CONFLICT (document_id, chunk_key) DO UPDATE SET
+                     sqlite_id = EXCLUDED.sqlite_id,
                      evidence_id = EXCLUDED.evidence_id,
                      section_path = EXCLUDED.section_path,
                      speaker = EXCLUDED.speaker,
@@ -597,7 +601,7 @@ def import_official_sqlite(
                      synthetic = false
                    RETURNING id""",
                 (
-                    document_ids[int(row["document_id"])], row["chunk_key"], evidence_id,
+                    row["id"], document_ids[int(row["document_id"])], row["chunk_key"], evidence_id,
                     row["section_path"], row["speaker"], row["text"], row["position"],
                     row["content_sha256"],
                     _validated_json_text(row["metadata_json"], field="chunks.metadata_json"),
@@ -610,12 +614,13 @@ def import_official_sqlite(
         for row in tables["entities"]:
             postgres_id = connection.execute(
                 """INSERT INTO hksr.entities
-                       (canonical_name, entity_type, description)
-                   VALUES (%s,%s,%s)
+                       (sqlite_id, canonical_name, entity_type, description)
+                   VALUES (%s,%s,%s,%s)
                    ON CONFLICT (canonical_name, entity_type) DO UPDATE SET
+                     sqlite_id = EXCLUDED.sqlite_id,
                      description = EXCLUDED.description
                    RETURNING id""",
-                (row["canonical_name"], row["entity_type"], row["description"]),
+                (row["id"], row["canonical_name"], row["entity_type"], row["description"]),
             ).fetchone()[0]
             entity_ids[int(row["id"])] = int(postgres_id)
             batcher.record_write()
@@ -646,13 +651,148 @@ def import_official_sqlite(
             batcher.record_write()
         rotate_connection()
 
+        connection.execute("DELETE FROM hksr.chunk_vectors")
+        connection.execute("DELETE FROM hksr.retrieval_metadata")
+        connection.commit()
+        batcher.commits += 1
+        for row in tables["chunk_vectors"]:
+            connection.execute(
+                """INSERT INTO hksr.chunk_vectors(chunk_id, vector_json, norm)
+                   VALUES (%s,%s::jsonb,%s)
+                   ON CONFLICT (chunk_id) DO UPDATE SET
+                     vector_json = EXCLUDED.vector_json, norm = EXCLUDED.norm""",
+                (
+                    chunk_ids[int(row["chunk_id"])],
+                    _validated_json_text(row["vector_json"], field="chunk_vectors.vector_json"),
+                    row["norm"],
+                ),
+            )
+            batcher.record_write()
+        for row in tables["retrieval_metadata"]:
+            connection.execute(
+                """INSERT INTO hksr.retrieval_metadata(key, value)
+                   VALUES (%s,%s::jsonb)
+                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
+                (
+                    row["key"],
+                    _validated_json_text(
+                        row["value_json"], field="retrieval_metadata.value_json"
+                    ),
+                ),
+            )
+            batcher.record_write()
+        rotate_connection()
+
+        for row in tables["narrative_people"]:
+            connection.execute(
+                """INSERT INTO hksr.narrative_people(
+                       stable_key, canonical_name, description, schema_version
+                   ) VALUES (%s,%s,%s,%s)
+                   ON CONFLICT (stable_key) DO UPDATE SET
+                     canonical_name = EXCLUDED.canonical_name,
+                     description = EXCLUDED.description,
+                     schema_version = EXCLUDED.schema_version""",
+                (
+                    row["stable_key"], row["canonical_name"], row["description"],
+                    row["schema_version"],
+                ),
+            )
+            batcher.record_write()
+        for row in tables["playable_forms"]:
+            connection.execute(
+                """INSERT INTO hksr.playable_forms(
+                       stable_key, narrative_person_key, entity_id, canonical_name,
+                       form_kind, link_status, evidence_id, schema_version
+                   ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (stable_key) DO UPDATE SET
+                     narrative_person_key = EXCLUDED.narrative_person_key,
+                     entity_id = EXCLUDED.entity_id,
+                     canonical_name = EXCLUDED.canonical_name,
+                     form_kind = EXCLUDED.form_kind,
+                     link_status = EXCLUDED.link_status,
+                     evidence_id = EXCLUDED.evidence_id,
+                     schema_version = EXCLUDED.schema_version""",
+                (
+                    row["stable_key"], row["narrative_person_key"],
+                    entity_ids[int(row["entity_id"])], row["canonical_name"],
+                    row["form_kind"], row["link_status"], row["evidence_id"],
+                    row["schema_version"],
+                ),
+            )
+            batcher.record_write()
+        connection.execute("DELETE FROM hksr.identity_names")
+        for row in tables["identity_names"]:
+            connection.execute(
+                """INSERT INTO hksr.identity_names(
+                       owner_kind, owner_key, name, name_type, is_official,
+                       evidence_id, schema_version
+                   ) VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                (
+                    row["owner_kind"], row["owner_key"], row["name"], row["name_type"],
+                    bool(row["is_official"]), row["evidence_id"], row["schema_version"],
+                ),
+            )
+            batcher.record_write()
+        retained_forms = [str(row["stable_key"]) for row in tables["playable_forms"]]
+        if retained_forms:
+            connection.execute(
+                "DELETE FROM hksr.playable_forms WHERE NOT (stable_key = ANY(%s))",
+                (retained_forms,),
+            )
+        else:
+            connection.execute("DELETE FROM hksr.playable_forms")
+        retained_people = [str(row["stable_key"]) for row in tables["narrative_people"]]
+        if retained_people:
+            connection.execute(
+                "DELETE FROM hksr.narrative_people WHERE NOT (stable_key = ANY(%s))",
+                (retained_people,),
+            )
+        else:
+            connection.execute("DELETE FROM hksr.narrative_people")
+        batcher.record_write()
+        rotate_connection()
+
+        for row in tables["source_dispositions"]:
+            connection.execute(
+                """INSERT INTO hksr.source_dispositions(
+                       source_id, disposition, reason, classifier_version, verified,
+                       reviewed_at, updated_at
+                   ) VALUES (%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (source_id) DO UPDATE SET
+                     disposition = EXCLUDED.disposition,
+                     reason = EXCLUDED.reason,
+                     classifier_version = EXCLUDED.classifier_version,
+                     verified = EXCLUDED.verified,
+                     reviewed_at = EXCLUDED.reviewed_at,
+                     updated_at = EXCLUDED.updated_at""",
+                (
+                    source_ids[int(row["source_id"])], row["disposition"], row["reason"],
+                    row["classifier_version"], bool(row["verified"]), row["reviewed_at"],
+                    row["updated_at"],
+                ),
+            )
+            batcher.record_write()
+        disposition_source_ids = [
+            source_ids[int(row["source_id"])] for row in tables["source_dispositions"]
+        ]
+        if disposition_source_ids:
+            connection.execute(
+                "DELETE FROM hksr.source_dispositions WHERE NOT (source_id = ANY(%s))",
+                (disposition_source_ids,),
+            )
+        else:
+            connection.execute("DELETE FROM hksr.source_dispositions")
+        batcher.record_write()
+        rotate_connection()
+
         for row in tables["relations"]:
             postgres_id = connection.execute(
                 """INSERT INTO hksr.relations
-                       (subject_id, predicate, object_id, evidence_level, review_status,
+                       (sqlite_id, subject_id, predicate, object_id, evidence_level, review_status,
                         confidence, reasoning, origin, is_stale)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                    ON CONFLICT (subject_id, predicate, object_id, origin) DO UPDATE SET
+                     sqlite_id = EXCLUDED.sqlite_id,
                      evidence_level = EXCLUDED.evidence_level,
                      review_status = EXCLUDED.review_status,
                      confidence = EXCLUDED.confidence,
@@ -660,7 +800,7 @@ def import_official_sqlite(
                      is_stale = EXCLUDED.is_stale
                    RETURNING id""",
                 (
-                    entity_ids[int(row["subject_id"])], row["predicate"],
+                    row["id"], entity_ids[int(row["subject_id"])], row["predicate"],
                     entity_ids[int(row["object_id"])], row["evidence_level"],
                     row["review_status"], row["confidence"], row["reasoning"],
                     row["origin"], bool(row["is_stale"]),
@@ -686,8 +826,8 @@ def import_official_sqlite(
             batcher.record_write()
         rotate_connection()
 
-        # Sparse vectors and semantic metadata are SQLite-only caches. PostgreSQL
-        # uses its own retrieval indexes, so remove any legacy mirrored copies.
+        # Remove deprecated ingestion-state copies now that the read runtime has
+        # first-class sparse-vector and retrieval-metadata tables.
         connection.execute(
             "DELETE FROM hksr.ingestion_state WHERE state_key LIKE 'sqlite_retrieval_%'"
         )
@@ -697,7 +837,9 @@ def import_official_sqlite(
         expected = {
             key: int(snapshot["counts"][key]) for key in (
                 "sources", "documents", "chunks", "entities", "aliases",
-                "entity_chunks", "relations", "relation_evidence", "official_evidence",
+                "entity_chunks", "chunk_vectors", "retrieval_metadata", "relations",
+                "relation_evidence", "source_dispositions", "narrative_people",
+                "playable_forms", "identity_names", "official_evidence",
             )
         }
         expected_wiki_by_kind: Dict[str, int] = {}
@@ -731,7 +873,9 @@ def import_official_sqlite(
             ).fetchone()[0])
             for table in (
                 "sources", "documents", "chunks", "entities", "aliases",
-                "entity_chunks", "relations", "relation_evidence", "official_evidence",
+                "entity_chunks", "chunk_vectors", "retrieval_metadata", "relations",
+                "relation_evidence", "source_dispositions", "narrative_people",
+                "playable_forms", "identity_names", "official_evidence",
             )
         }
         counts_match = expected == observed
@@ -774,10 +918,10 @@ def import_official_sqlite(
         "counts_match": counts_match,
         "stable_evidence_ids_unique": True,
         "dense_embeddings_imported": 0,
-        "local_sparse_vectors_deferred": int(snapshot["counts"]["chunk_vectors"]),
-        "local_retrieval_metadata_deferred": int(
-            snapshot["counts"]["retrieval_metadata"]
-        ),
+        "sparse_vectors_imported": int(snapshot["counts"]["chunk_vectors"]),
+        "retrieval_metadata_imported": int(snapshot["counts"]["retrieval_metadata"]),
+        "local_sparse_vectors_deferred": 0,
+        "local_retrieval_metadata_deferred": 0,
         "synthetic_rows_imported": 0,
         "repeated_batch": bool(existing_batch),
         "commit_interval": commit_interval,

@@ -193,19 +193,10 @@ def _replace_names(
 
 
 def audit_identity_catalog(database: Database) -> Dict[str, Any]:
-    database.initialize()
     valid_evidence = database.evidence_ids()
     errors: List[str] = []
-    with database.connect() as connection:
-        people = [dict(row) for row in connection.execute(
-            "SELECT * FROM narrative_people ORDER BY stable_key"
-        )]
-        forms = [dict(row) for row in connection.execute(
-            "SELECT * FROM playable_forms ORDER BY stable_key"
-        )]
-        names = [dict(row) for row in connection.execute(
-            "SELECT * FROM identity_names ORDER BY owner_kind, owner_key, name"
-        )]
+    rows = database.identity_rows()
+    people, forms, names = rows["people"], rows["forms"], rows["names"]
     person_keys = {row["stable_key"] for row in people}
     form_keys = {row["stable_key"] for row in forms}
     for form in forms:
@@ -235,17 +226,8 @@ def identity_catalog(database: Database, *, include_pending: bool = False) -> Li
     audit = audit_identity_catalog(database)
     if audit["errors"]:
         raise RuntimeError("Identity catalogue is invalid")
-    with database.connect() as connection:
-        people = [dict(row) for row in connection.execute(
-            "SELECT * FROM narrative_people ORDER BY canonical_name"
-        )]
-        forms = [dict(row) for row in connection.execute(
-            """SELECT * FROM playable_forms ORDER BY narrative_person_key,
-               CASE form_kind WHEN 'base' THEN 0 ELSE 1 END, canonical_name"""
-        )]
-        names = [dict(row) for row in connection.execute(
-            "SELECT * FROM identity_names ORDER BY owner_kind, owner_key, name_type, name"
-        )]
+    rows = database.identity_rows()
+    people, forms, names = rows["people"], rows["forms"], rows["names"]
     names_by_owner: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
     for name in names:
         names_by_owner.setdefault((name["owner_kind"], name["owner_key"]), []).append(name)

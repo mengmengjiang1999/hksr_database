@@ -8,12 +8,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from app.collectors import fetch_sources, parse_sources
+from app.cloud import CloudDatabaseConfig
 from app.knowledge import audit_relations, build_relations, identity_catalog, list_relations
-from app.models.database import Database
+from app.models import Database, PostgresReadStore, ReadStore, ReadStoreUnavailable
 from app.qa import GenerationService, answer_question, answer_question_legacy, resolve_query_entities
 from app.retrieval import build_retrieval_index, hybrid_search, source_context
 
@@ -24,6 +25,7 @@ DEFAULT_RAW_ROOT = PROJECT_ROOT / "data/raw"
 DEFAULT_ENTITIES = PROJECT_ROOT / "data/m2/entities.json"
 DEFAULT_RELATIONS = PROJECT_ROOT / "data/m4/relations.json"
 DEFAULT_WEB_ROOT = PROJECT_ROOT / "web"
+BACKEND_ENVIRONMENT_VARIABLE = "HKSR_READ_BACKEND"
 
 
 class AskRequest(BaseModel):
@@ -43,43 +45,43 @@ class SyncRequest(BaseModel):
     timeout: int = Field(default=30, ge=1, le=300)
 
 
-def _source_detail(database: Database, source_id: int) -> Dict[str, Any]:
+def build_read_store(database_path: Path = DEFAULT_DATABASE) -> ReadStore:
+    backend = os.environ.get(BACKEND_ENVIRONMENT_VARIABLE, "sqlite").strip().lower()
+    if backend == "sqlite":
+        return Database(Path(database_path))
+    if backend == "postgres":
+        try:
+            pool_max = int(os.environ.get("HKSR_POSTGRES_POOL_MAX", "2"))
+            acquire_timeout = float(os.environ.get("HKSR_POSTGRES_ACQUIRE_TIMEOUT", "5"))
+            connect_timeout = int(os.environ.get("HKSR_POSTGRES_CONNECT_TIMEOUT", "10"))
+            statement_timeout = int(os.environ.get("HKSR_POSTGRES_STATEMENT_TIMEOUT_MS", "15000"))
+        except ValueError as error:
+            raise ValueError("PostgreSQL pool and timeout settings must be numeric") from error
+        return PostgresReadStore(
+            CloudDatabaseConfig.from_environment().dsn,
+            max_size=pool_max,
+            acquire_timeout=acquire_timeout,
+            connect_timeout=connect_timeout,
+            statement_timeout_ms=statement_timeout,
+        )
+    raise ValueError("HKSR_READ_BACKEND must be 'sqlite' or 'postgres'")
+
+
+def _source_detail(database: ReadStore, source_id: int) -> Dict[str, Any]:
     try:
-        source = database.get_source(source_id)
+        return database.source_detail(source_id)
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
-    with database.connect() as connection:
-        documents = connection.execute(
-            """
-            SELECT id, document_key, title, section_path, content_type, position,
-                   evidence_eligible, metadata_json
-            FROM documents WHERE source_id = ? ORDER BY position
-            """,
-            (source_id,),
-        ).fetchall()
-        document_items = []
-        for document in documents:
-            item = dict(document)
-            item["chunk_count"] = connection.execute(
-                "SELECT COUNT(*) FROM chunks WHERE document_id = ?", (document["id"],)
-            ).fetchone()[0]
-            document_items.append(item)
-    allowed = (
-        "id", "provider", "external_id", "source_kind", "page_url", "title",
-        "version", "remote_created_at", "remote_updated_at", "official_status",
-        "status", "fetched_at", "parsed_at", "last_error",
-    )
-    return {"source": {key: source[key] for key in allowed}, "documents": document_items}
 
 
-def _entity_detail(database: Database, entity_id: int) -> Dict[str, Any]:
+def _entity_detail(database: ReadStore, entity_id: int) -> Dict[str, Any]:
     entity = next((item for item in database.entity_catalog() if int(item["id"]) == entity_id), None)
     if entity is None:
         raise HTTPException(status_code=404, detail="Unknown entity id: %d" % entity_id)
     return {"entity": entity, "relations": list_relations(database, entity["canonical_name"])}
 
 
-def _question_entities(database: Database, question: str) -> List[Dict[str, Any]]:
+def _question_entities(database: ReadStore, question: str) -> List[Dict[str, Any]]:
     output = []
     resolved_ids = {item["entity_id"] for item in resolve_query_entities(database, question)}
     for entity in database.entity_catalog():
@@ -99,8 +101,9 @@ def create_app(
     web_root: Path = DEFAULT_WEB_ROOT,
     generation_service: Optional[GenerationService] = None,
     entity_qa_enabled: Optional[bool] = None,
+    read_store: Optional[ReadStore] = None,
 ) -> FastAPI:
-    database = Database(Path(database_path))
+    database = read_store or build_read_store(Path(database_path))
     database.initialize()
     app = FastAPI(
         title="崩坏：星穹铁道剧情与设定知识库",
@@ -127,6 +130,20 @@ def create_app(
     app.state.retrieval_concurrency = retrieval_concurrency
     app.state.retrieval_slots = threading.BoundedSemaphore(retrieval_concurrency)
 
+    @app.exception_handler(ReadStoreUnavailable)
+    def unavailable(_request: Any, _error: ReadStoreUnavailable) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "数据库暂时不可用，请稍后重试"},
+            headers={"Retry-After": "2"},
+        )
+
+    @app.on_event("shutdown")
+    def close_read_store() -> None:
+        close = getattr(database, "close", None)
+        if close is not None:
+            close()
+
     def acquire_retrieval_slot() -> None:
         if not app.state.retrieval_slots.acquire(blocking=False):
             raise HTTPException(
@@ -147,7 +164,9 @@ def create_app(
 
     @app.get("/api/health")
     def health() -> Dict[str, Any]:
-        return {"status": "ok", "local_only_default": True,
+        readiness = database.readiness()
+        return {"status": "ok" if readiness["ready"] else "unavailable",
+                "local_only_default": True, "database": readiness,
                 "generation_enabled": app.state.generation_service.adapter is not None,
                 "entity_qa_enabled": app.state.entity_qa_enabled}
 
@@ -234,6 +253,8 @@ def create_app(
     def admin_sync(request: SyncRequest) -> Dict[str, Any]:
         stages: Dict[str, Any] = {}
         try:
+            if not getattr(database, "mutable", False):
+                raise PermissionError("Administrative sync is disabled for the read-only backend")
             if request.fetch:
                 stages["fetch"] = fetch_sources(
                     database, app.state.raw_root, force=request.force_fetch,

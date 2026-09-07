@@ -83,43 +83,10 @@ def load_real_question_dataset(path: Path, taxonomy: Mapping[str, Any]) -> Dict[
 
 def corpus_snapshot(database: Database) -> Dict[str, Any]:
     """Return a secret-free fingerprint of all retrieval-relevant local state."""
-    database.initialize()
-    with database.connect() as connection:
-        sources = [dict(row) for row in connection.execute(
-            """SELECT provider, external_id, source_kind, status, official_status,
-                      COALESCE(version, '') AS version, COALESCE(content_sha256, '') AS content_sha256
-               FROM sources ORDER BY provider, external_id"""
-        )]
-        documents = [dict(row) for row in connection.execute(
-            """SELECT s.provider, s.external_id, d.document_key, d.evidence_eligible
-               FROM documents d JOIN sources s ON s.id = d.source_id
-               ORDER BY s.provider, s.external_id, d.document_key"""
-        )]
-        chunks = [dict(row) for row in connection.execute(
-            """SELECT s.provider, s.external_id, d.document_key, c.chunk_key,
-                      c.content_sha256, d.evidence_eligible, s.status
-               FROM chunks c JOIN documents d ON d.id = c.document_id
-               JOIN sources s ON s.id = d.source_id
-               ORDER BY s.provider, s.external_id, d.document_key, c.chunk_key"""
-        )]
-        entities = [dict(row) for row in connection.execute(
-            """SELECT canonical_name, entity_type, description
-               FROM entities ORDER BY entity_type, canonical_name"""
-        )]
-        aliases = [dict(row) for row in connection.execute(
-            """SELECT e.canonical_name, e.entity_type, a.alias, a.alias_type
-               FROM aliases a JOIN entities e ON e.id = a.entity_id
-               ORDER BY e.entity_type, e.canonical_name, a.alias"""
-        )]
-        relations = [dict(row) for row in connection.execute(
-            """SELECT se.canonical_name AS subject, r.predicate,
-                      oe.canonical_name AS object, r.evidence_level,
-                      r.review_status, r.is_stale
-               FROM relations r JOIN entities se ON se.id = r.subject_id
-               JOIN entities oe ON oe.id = r.object_id
-               ORDER BY subject, r.predicate, object"""
-        )]
-        vector_count = int(connection.execute("SELECT COUNT(*) FROM chunk_vectors").fetchone()[0])
+    rows = database.corpus_snapshot_rows()
+    sources, documents, chunks = rows["sources"], rows["documents"], rows["chunks"]
+    entities, aliases, relations = rows["entities"], rows["aliases"], rows["relations"]
+    vector_count = int(rows["semantic_vectors"])
     source_statuses = Counter(row["status"] for row in sources)
     source_providers = Counter(row["provider"] for row in sources)
     source_kinds = Counter(row["source_kind"] for row in sources)
@@ -209,6 +176,15 @@ def evaluate_real_questions(
     details = []
     observed = Counter()
     passed = 0
+    top5_hits = 0
+    top5_denominator = 0
+    direct_correct = 0
+    direct_denominator = 0
+    refusal_correct = 0
+    refusal_denominator = 0
+    citation_claims = 0
+    citation_supported = 0
+    valid_evidence_ids = database.evidence_ids()
     for case in dataset["cases"]:
         expectation = case["expectation"]
         outcome = expectation["outcome"]
@@ -216,12 +192,12 @@ def evaluate_real_questions(
         evidence_state, evidence_rows = _evidence_state(database, expected) if expected else ("none", [])
         top_ids: List[str] = []
         top_score = 0.0
+        answer = answer_question(database, case["question"], limit=limit)
 
         if outcome == "ambiguous":
             classification = "entity_ambiguity"
             correct = True
         elif outcome == "correct_refusal":
-            answer = answer_question(database, case["question"], limit=limit)
             correct = answer["status"] == "uncertain"
             classification = "correct_refusal" if correct else "generation_failure"
         elif evidence_state != "available":
@@ -235,6 +211,32 @@ def evaluate_real_questions(
             correct = bool(expected_ids.intersection(top_ids))
             classification = "passed" if correct else "ranking_miss"
 
+        top5_expected = {row["evidence_id"] for row in evidence_rows}
+        top5_hit = bool(top5_expected.intersection(top_ids[:5])) if top5_expected else None
+        if outcome == "answerable" and evidence_state == "available":
+            top5_denominator += 1
+            top5_hits += int(bool(top5_hit))
+        claims = answer.get("claims") or []
+        citation_ids = [
+            str(citation.get("evidence_id", ""))
+            for claim in claims for citation in claim.get("citations") or []
+        ]
+        claim_support = [
+            bool(claim.get("citations")) and all(
+                str(citation.get("evidence_id", "")) in valid_evidence_ids
+                for citation in claim.get("citations") or []
+            )
+            for claim in claims
+        ]
+        citation_claims += len(claim_support)
+        citation_supported += sum(claim_support)
+        if outcome != "pending_corpus":
+            direct_denominator += 1
+            direct_correct += int(correct)
+        if outcome == "correct_refusal":
+            refusal_denominator += 1
+            refusal_correct += int(correct and not claims)
+
         passed += int(correct)
         observed[classification] += 1
         details.append({
@@ -245,6 +247,21 @@ def evaluate_real_questions(
             "correct": correct,
             "top_score": round(top_score, 6),
             "top_evidence_ids": top_ids,
+            "expected_evidence_ids": sorted(top5_expected),
+            "top5_hit": top5_hit,
+            "direct_answer": {
+                "status": answer.get("status"),
+                "intent": answer.get("intent"),
+                "answer_strategy": answer.get("answer_strategy"),
+                "refused": answer.get("status") == "uncertain",
+                "ambiguity": answer.get("ambiguity"),
+                "partial_support": answer.get("partial_support"),
+                "resolved_entities": answer.get("resolved_entities") or [],
+                "citation_ids": citation_ids,
+                "claims": len(claims),
+                "citations_valid": all(claim_support),
+            },
+            "failure_owner": None if correct else classification,
         })
     total = len(details)
     return {
@@ -253,12 +270,34 @@ def evaluate_real_questions(
         "dataset_version": dataset["dataset_version"],
         "taxonomy_fingerprint": _canonical_digest(taxonomy),
         "dataset_fingerprint": _canonical_digest(dataset),
+        "backend": getattr(database, "backend_name", "unknown"),
+        "model_generation_enabled": False,
         "corpus_snapshot": snapshot,
         "summary": {
             "cases": total,
             "correct": passed,
             "accuracy": round(passed / total, 4) if total else 0.0,
             "observed_classifications": dict(sorted(observed.items())),
+            "top5": {
+                "numerator": top5_hits,
+                "denominator": top5_denominator,
+                "rate": round(top5_hits / top5_denominator, 4) if top5_denominator else 0.0,
+            },
+            "direct_answer": {
+                "numerator": direct_correct,
+                "denominator": direct_denominator,
+                "rate": round(direct_correct / direct_denominator, 4) if direct_denominator else 0.0,
+            },
+            "refusal": {
+                "numerator": refusal_correct,
+                "denominator": refusal_denominator,
+                "rate": round(refusal_correct / refusal_denominator, 4) if refusal_denominator else 0.0,
+            },
+            "factual_citation_support": {
+                "numerator": citation_supported,
+                "denominator": citation_claims,
+                "rate": round(citation_supported / citation_claims, 4) if citation_claims else 1.0,
+            },
         },
         "details": details,
     }
