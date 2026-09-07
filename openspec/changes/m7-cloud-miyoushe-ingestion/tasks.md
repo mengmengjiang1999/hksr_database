@@ -39,7 +39,7 @@
 ## 6. M7C acceptance and controlled incrementals
 
 - [x] 6.1 Rebuild ECS-local indexes, sample lore-related retrieval traceability, and compare eligible SQLite staging counts with the final RDS audit.
-- [ ] 6.2 Run three manually initiated no-change incremental checks and verify stable cursors, hashes, evidence IDs, row counts, and request-budget behavior.
+- [x] 6.2 Run three manually initiated no-change incremental checks and verify stable cursors, hashes, evidence IDs, row counts, and request-budget behavior.
 - [x] 6.3 Add systemd oneshot and timer units with locking and journal logging, install them on ECS, and confirm the recurring timer remains disabled.
 - [x] 6.4 Produce sanitized JSON and Markdown completion reports covering inventory, dispositions, pacing, retries, OSS persistence, RDS batches, exclusions, and unresolved items.
 - [x] 6.5 Run the full local offline test suite, full ECS test suite, strict OpenSpec validation, and secret scan; enable recurring collection only after separate explicit user approval.
