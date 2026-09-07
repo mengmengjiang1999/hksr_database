@@ -29,6 +29,13 @@ class RuntimeRoleTests(unittest.TestCase):
         self.assertIn(".config/hksr/rds-runtime.dsn", launcher)
         self.assertNotIn(".config/hksr/rds.dsn", launcher)
 
+    def test_public_validation_schema_access_is_explicitly_revoked(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        module = root.joinpath("app/cloud/runtime_role.py").read_text(encoding="utf-8")
+        self.assertIn(
+            "REVOKE ALL ON SCHEMA hksr_validation FROM PUBLIC", module
+        )
+
     def test_secret_file_is_atomic_and_private(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "private" / "runtime.dsn"

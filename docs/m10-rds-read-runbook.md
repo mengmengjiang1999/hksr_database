@@ -16,6 +16,8 @@
 运行角色由 `deploy/configure-rds-runtime-role.py --apply` 创建或轮换。脚本只输出角色属性、
 允许/拒绝矩阵和 SQLSTATE，不输出密码或连接串；运行 DSN 以 `0600` 原子写入
 `~/.config/hksr/rds-runtime.dsn`。
+配置过程同时撤销旧 `hksr_validation` 合成验证 Schema 对 `PUBLIC` 的访问，防止运行角色
+通过公共授权读取与应用无关的对象；该操作不修改 `hksr` 生产语料。
 
 双读是离线验收：同一套固定问题分别读取 SQLite 与 RDS，再比较稳定证据 ID、实体、回答状态、
 引用、来源导航、目录和关系。线上请求不会同时查询两套数据库。

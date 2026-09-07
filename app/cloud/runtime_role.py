@@ -120,6 +120,12 @@ def provision_runtime_role(
         connection.execute(sql.SQL("GRANT USAGE ON SCHEMA hksr TO {}").format(identifier))
         connection.execute(sql.SQL("REVOKE ALL ON SCHEMA hksr_meta FROM {}").format(identifier))
         connection.execute(sql.SQL("GRANT USAGE ON SCHEMA hksr_meta TO {}").format(identifier))
+        # The old synthetic-validation schema was originally readable through
+        # PUBLIC. Remove that inherited path before proving isolation.
+        connection.execute("REVOKE ALL ON SCHEMA hksr_validation FROM PUBLIC")
+        connection.execute(
+            sql.SQL("REVOKE ALL ON SCHEMA hksr_validation FROM {}").format(identifier)
+        )
         connection.execute(
             sql.SQL("GRANT SELECT ON {} TO {}").format(
                 sql.SQL(", ").join(
@@ -146,6 +152,7 @@ def provision_runtime_role(
         "runtime_dsn_mode": oct(Path(runtime_path).stat().st_mode & 0o777),
         "granted_tables": ["hksr.%s" % item for item in READ_TABLES]
         + ["hksr_meta.%s" % item for item in META_READ_TABLES],
+        "public_validation_schema_access_revoked": True,
         "secret_recorded": False,
     }
 
