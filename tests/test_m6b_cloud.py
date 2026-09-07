@@ -314,8 +314,8 @@ class MigrationAndFixtureTests(unittest.TestCase):
             self.assertEqual(first["counts"]["official_evidence"], 1)
             self.assertEqual(first["counts"]["chunk_vectors"], 1)
             self.assertEqual(first["counts"]["retrieval_metadata"], 1)
-            self.assertIn("chunk_vectors", first["tables"])
-            self.assertIn("retrieval_metadata", first["tables"])
+            self.assertNotIn("chunk_vectors", first["tables"])
+            self.assertNotIn("retrieval_metadata", first["tables"])
             self.assertEqual(first["evidence_ids"], [evidence_id])
 
     def test_m6a_estimate_is_loaded_by_chunk_scenario(self) -> None:

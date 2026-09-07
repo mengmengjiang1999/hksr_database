@@ -337,9 +337,10 @@ def stable_postgres_evidence_id(
 
 SQLITE_IMPORT_TABLES = (
     "sources", "documents", "chunks", "entities", "aliases", "entity_chunks",
-    "chunk_vectors", "retrieval_metadata", "relations", "relation_evidence",
-    "source_dispositions", "narrative_people", "playable_forms", "identity_names",
+    "relations", "relation_evidence", "source_dispositions", "narrative_people",
+    "playable_forms", "identity_names",
 )
+SQLITE_STREAMED_RETRIEVAL_TABLES = ("chunk_vectors", "retrieval_metadata")
 SQLITE_DEFERRED_RETRIEVAL_TABLES: Tuple[str, ...] = ()
 
 
@@ -357,7 +358,10 @@ def read_official_sqlite_snapshot(path: Path) -> Dict[str, Any]:
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )
         }
-        required = SQLITE_IMPORT_TABLES + SQLITE_DEFERRED_RETRIEVAL_TABLES
+        required = (
+            SQLITE_IMPORT_TABLES + SQLITE_STREAMED_RETRIEVAL_TABLES
+            + SQLITE_DEFERRED_RETRIEVAL_TABLES
+        )
         missing = [table for table in required if table not in available]
         if missing:
             raise ValueError("SQLite evidence database is missing required tables")
@@ -374,10 +378,23 @@ def read_official_sqlite_snapshot(path: Path) -> Dict[str, Any]:
         for table in SQLITE_IMPORT_TABLES:
             rows = connection.execute("SELECT * FROM %s ORDER BY rowid" % table).fetchall()
             tables[table] = [dict(row) for row in rows]
-        deferred_counts = {
+        streamed_counts = {
             table: int(connection.execute(
                 "SELECT count(*) FROM %s" % table
             ).fetchone()[0])
+            for table in SQLITE_STREAMED_RETRIEVAL_TABLES
+        }
+        streamed_hashes = {}
+        for table in SQLITE_STREAMED_RETRIEVAL_TABLES:
+            digest = hashlib.sha256()
+            for row in connection.execute("SELECT * FROM %s ORDER BY rowid" % table):
+                digest.update(json.dumps(
+                    dict(row), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                ).encode("utf-8"))
+                digest.update(b"\n")
+            streamed_hashes[table] = digest.hexdigest()
+        deferred_counts = {
+            table: int(connection.execute("SELECT count(*) FROM %s" % table).fetchone()[0])
             for table in SQLITE_DEFERRED_RETRIEVAL_TABLES
         }
     finally:
@@ -403,9 +420,11 @@ def read_official_sqlite_snapshot(path: Path) -> Dict[str, Any]:
         raise ValueError("SQLite snapshot contains duplicate stable evidence identifiers")
 
     canonical = json.dumps(
-        tables, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        {"tables": tables, "streamed_hashes": streamed_hashes},
+        ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     counts = {table: len(rows) for table, rows in tables.items()}
+    counts.update(streamed_counts)
     counts.update(deferred_counts)
     counts["official_evidence"] = eligible_chunks
     return {
@@ -414,6 +433,18 @@ def read_official_sqlite_snapshot(path: Path) -> Dict[str, Any]:
         "evidence_ids": evidence_ids,
         "source_fingerprint": hashlib.sha256(canonical).hexdigest(),
     }
+
+
+def _iter_sqlite_rows(path: Path, table: str) -> Iterator[Dict[str, Any]]:
+    if table not in SQLITE_STREAMED_RETRIEVAL_TABLES:
+        raise ValueError("Table is not approved for streamed SQLite reads")
+    connection = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
+    connection.row_factory = sqlite3.Row
+    try:
+        for row in connection.execute("SELECT * FROM %s ORDER BY rowid" % table):
+            yield dict(row)
+    finally:
+        connection.close()
 
 
 def _validated_json_text(value: Any, *, field: str) -> str:
@@ -655,7 +686,7 @@ def import_official_sqlite(
         connection.execute("DELETE FROM hksr.retrieval_metadata")
         connection.commit()
         batcher.commits += 1
-        for row in tables["chunk_vectors"]:
+        for row in _iter_sqlite_rows(sqlite_path, "chunk_vectors"):
             connection.execute(
                 """INSERT INTO hksr.chunk_vectors(chunk_id, vector_json, norm)
                    VALUES (%s,%s::jsonb,%s)
@@ -668,7 +699,7 @@ def import_official_sqlite(
                 ),
             )
             batcher.record_write()
-        for row in tables["retrieval_metadata"]:
+        for row in _iter_sqlite_rows(sqlite_path, "retrieval_metadata"):
             connection.execute(
                 """INSERT INTO hksr.retrieval_metadata(key, value)
                    VALUES (%s,%s::jsonb)
