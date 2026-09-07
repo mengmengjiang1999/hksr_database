@@ -6,7 +6,7 @@ import hashlib
 import json
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from app.models.database import Database, stable_evidence_id
 from app.qa.grounding import answer_question
@@ -124,10 +124,12 @@ def _expected_evidence(case: Mapping[str, Any]) -> Sequence[Mapping[str, Any]]:
 
 
 def _evidence_state(
-    database: Database, expected: Sequence[Mapping[str, Any]]
+    database: Database, expected: Sequence[Mapping[str, Any]],
+    *, rows: Optional[Sequence[Mapping[str, Any]]] = None,
+    sources: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> Tuple[str, List[Dict[str, Any]]]:
-    rows = database.retrieval_rows()
-    sources = database.list_sources()
+    rows = list(rows) if rows is not None else database.evidence_match_rows()
+    sources = list(sources) if sources is not None else database.list_sources()
     matched_rows: List[Dict[str, Any]] = []
     missing_states: List[str] = []
     for item in expected:
@@ -185,11 +187,15 @@ def evaluate_real_questions(
     citation_claims = 0
     citation_supported = 0
     valid_evidence_ids = database.evidence_ids()
+    evidence_match_rows = database.evidence_match_rows()
+    source_rows = database.list_sources()
     for case in dataset["cases"]:
         expectation = case["expectation"]
         outcome = expectation["outcome"]
         expected = _expected_evidence(case)
-        evidence_state, evidence_rows = _evidence_state(database, expected) if expected else ("none", [])
+        evidence_state, evidence_rows = _evidence_state(
+            database, expected, rows=evidence_match_rows, sources=source_rows
+        ) if expected else ("none", [])
         top_ids: List[str] = []
         top_score = 0.0
         answer = answer_question(database, case["question"], limit=limit)

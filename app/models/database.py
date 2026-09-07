@@ -681,6 +681,24 @@ class Database:
             ).fetchall()
         return {str(row["evidence_id"]) for row in rows}
 
+    def evidence_match_rows(self) -> List[Dict[str, Any]]:
+        """Return lightweight evidence text for full-corpus evaluation only."""
+        with self.connect() as connection:
+            rows = connection.execute(
+                """SELECT s.provider, s.external_id, d.document_key, c.chunk_key, c.text
+                   FROM chunks c JOIN documents d ON d.id=c.document_id
+                   JOIN sources s ON s.id=d.source_id
+                   WHERE d.evidence_eligible=1 AND s.status='parsed'
+                   ORDER BY s.provider, s.external_id, d.document_key, c.chunk_key"""
+            ).fetchall()
+        return [{
+            "provider": row["provider"], "external_id": row["external_id"],
+            "evidence_id": stable_evidence_id(
+                row["provider"], row["external_id"], row["document_key"], row["chunk_key"]
+            ),
+            "text": row["text"],
+        } for row in rows]
+
     def retrieval_rows_by_evidence_ids(
         self, evidence_ids: Sequence[str]
     ) -> List[Dict[str, Any]]:

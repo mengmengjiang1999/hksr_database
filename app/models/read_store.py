@@ -27,6 +27,7 @@ class ReadStore(Protocol):
     def retrieval_rows(self, chunk_ids: Optional[Sequence[int]] = None) -> List[Dict[str, Any]]: ...
     def retrieval_rows_by_evidence_ids(self, evidence_ids: Sequence[str]) -> List[Dict[str, Any]]: ...
     def evidence_ids(self) -> set[str]: ...
+    def evidence_match_rows(self) -> List[Dict[str, Any]]: ...
     def evidence_context(self, evidence_id: str, window: int = 1) -> Dict[str, Any]: ...
     def statistics(self) -> Dict[str, Any]: ...
     def catalog_metadata(self) -> Dict[str, Any]: ...
@@ -424,6 +425,17 @@ class PostgresReadStore:
                    WHERE d.evidence_eligible AND s.status='parsed'"""
             ).fetchall()
         return {str(row["evidence_id"]) for row in rows}
+
+    def evidence_match_rows(self) -> List[Dict[str, Any]]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                """SELECT s.provider, s.external_id, c.evidence_id, c.text
+                   FROM hksr.chunks c JOIN hksr.documents d ON d.id=c.document_id
+                   JOIN hksr.sources s ON s.id=d.source_id
+                   WHERE d.evidence_eligible AND s.status='parsed'
+                   ORDER BY c.evidence_id"""
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def evidence_context(self, evidence_id: str, window: int = 1) -> Dict[str, Any]:
         if window < 0:
