@@ -7,6 +7,7 @@ explicit boolean and synthetic cleanup requires an exact validation run ID.
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import math
@@ -341,6 +342,7 @@ SQLITE_IMPORT_TABLES = (
     "playable_forms", "identity_names",
 )
 SQLITE_STREAMED_RETRIEVAL_TABLES = ("chunk_vectors", "retrieval_metadata")
+RETRIEVAL_METADATA_CHUNK_BYTES = 1024 * 1024
 SQLITE_DEFERRED_RETRIEVAL_TABLES: Tuple[str, ...] = ()
 
 
@@ -454,6 +456,22 @@ def _validated_json_text(value: Any, *, field: str) -> str:
     except json.JSONDecodeError as error:
         raise ValueError("Invalid JSON in SQLite field %s" % field) from error
     return json.dumps(parsed, ensure_ascii=False, sort_keys=True)
+
+
+def _chunk_retrieval_metadata(value: Any) -> Tuple[Dict[str, Any], List[bytes]]:
+    raw = _validated_json_text(value, field="retrieval_metadata.value_json").encode("utf-8")
+    compressed = gzip.compress(raw, compresslevel=6, mtime=0)
+    chunks = [
+        compressed[offset : offset + RETRIEVAL_METADATA_CHUNK_BYTES]
+        for offset in range(0, len(compressed), RETRIEVAL_METADATA_CHUNK_BYTES)
+    ]
+    descriptor = {
+        "storage": "gzip_chunks_v1",
+        "chunk_count": len(chunks),
+        "raw_bytes": len(raw),
+        "raw_sha256": hashlib.sha256(raw).hexdigest(),
+    }
+    return descriptor, chunks
 
 
 class _TransactionBatcher:
@@ -700,18 +718,24 @@ def import_official_sqlite(
             )
             batcher.record_write()
         for row in _iter_sqlite_rows(sqlite_path, "retrieval_metadata"):
+            descriptor, payloads = _chunk_retrieval_metadata(row["value_json"])
             connection.execute(
                 """INSERT INTO hksr.retrieval_metadata(key, value)
                    VALUES (%s,%s::jsonb)
                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
-                (
-                    row["key"],
-                    _validated_json_text(
-                        row["value_json"], field="retrieval_metadata.value_json"
-                    ),
-                ),
+                (row["key"], json.dumps(descriptor, sort_keys=True)),
             )
             batcher.record_write()
+            for ordinal, payload in enumerate(payloads):
+                connection.execute(
+                    """INSERT INTO hksr.retrieval_metadata_chunks(
+                           metadata_key, ordinal, payload
+                       ) VALUES (%s,%s,%s)
+                       ON CONFLICT (metadata_key, ordinal) DO UPDATE SET
+                         payload = EXCLUDED.payload""",
+                    (row["key"], ordinal, payload),
+                )
+                batcher.record_write()
         rotate_connection()
 
         for row in tables["narrative_people"]:

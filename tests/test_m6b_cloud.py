@@ -202,12 +202,14 @@ class MigrationAndFixtureTests(unittest.TestCase):
         self.assertEqual(
             [path.name for path in files],
             ["001_core.sql", "002_validation.sql", "003_real_evidence_import.sql",
-             "004_m7_import_batches.sql", "005_m10_read_runtime.sql"],
+             "004_m7_import_batches.sql", "005_m10_read_runtime.sql",
+             "006_m10_chunked_retrieval_metadata.sql"],
         )
         self.assertEqual(
             [path.name for path in migration_plan(["001_core.sql"])],
             ["002_validation.sql", "003_real_evidence_import.sql",
-             "004_m7_import_batches.sql", "005_m10_read_runtime.sql"],
+             "004_m7_import_batches.sql", "005_m10_read_runtime.sql",
+             "006_m10_chunked_retrieval_metadata.sql"],
         )
         combined = "\n".join(path.read_text(encoding="utf-8") for path in files).lower()
         self.assertIn("create table if not exists", combined)

@@ -1,4 +1,6 @@
 import copy
+import hashlib
+import json
 import os
 import tempfile
 import unittest
@@ -6,9 +8,11 @@ from pathlib import Path
 from unittest import mock
 
 from app.api.main import build_read_store
+from app.cloud.validation import _chunk_retrieval_metadata
 from app.cli import build_parser
 from app.m10 import compare_reports, manifest_acceptance, quality_gates
 from app.models import Database, PostgresReadStore, SQLiteReadStore
+from app.models.read_store import _decode_chunked_metadata
 
 
 class BackendSelectionTests(unittest.TestCase):
@@ -87,6 +91,32 @@ class PoolContractTests(unittest.TestCase):
         ):
             self.assertIn(required, sql)
         self.assertNotIn("postgresql://", sql)
+
+    def test_large_retrieval_metadata_is_chunked_and_verified(self) -> None:
+        value = {
+            "schema_version": 1,
+            "idf": {str(index): index / 10 for index in range(50000)},
+        }
+        descriptor, payloads = _chunk_retrieval_metadata(json.dumps(value))
+        rows = [
+            {"ordinal": index, "payload": payload}
+            for index, payload in enumerate(payloads)
+        ]
+        self.assertEqual(_decode_chunked_metadata(descriptor, rows), value)
+        canonical = json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        self.assertEqual(descriptor["raw_sha256"], hashlib.sha256(canonical).hexdigest())
+        damaged = copy.deepcopy(rows)
+        damaged[-1]["payload"] = bytes(damaged[-1]["payload"][:-1]) + b"x"
+        with self.assertRaisesRegex(RuntimeError, "corrupt|length|checksum"):
+            _decode_chunked_metadata(descriptor, damaged)
+
+    def test_chunked_metadata_migration_has_foreign_key_and_primary_key(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        sql = root.joinpath(
+            "migrations/postgres/006_m10_chunked_retrieval_metadata.sql"
+        ).read_text(encoding="utf-8").lower()
+        self.assertIn("references hksr.retrieval_metadata", sql)
+        self.assertIn("primary key (metadata_key, ordinal)", sql)
 
 
 class AcceptanceReportTests(unittest.TestCase):

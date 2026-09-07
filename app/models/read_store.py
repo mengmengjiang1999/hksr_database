@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import gzip
+import hashlib
 import json
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Protocol, Sequence
@@ -48,6 +50,29 @@ class ReadStoreUnavailable(RuntimeError):
     """Sanitized retryable backend failure safe for API responses."""
 
 
+def _decode_chunked_metadata(
+    descriptor: Mapping[str, Any], payload_rows: Sequence[Mapping[str, Any]]
+) -> Dict[str, Any]:
+    expected_count = int(descriptor.get("chunk_count", -1))
+    if expected_count < 1 or len(payload_rows) != expected_count:
+        raise RuntimeError("PostgreSQL retrieval metadata is incomplete")
+    if [int(row["ordinal"]) for row in payload_rows] != list(range(expected_count)):
+        raise RuntimeError("PostgreSQL retrieval metadata chunks are not contiguous")
+    compressed = b"".join(bytes(row["payload"]) for row in payload_rows)
+    try:
+        raw = gzip.decompress(compressed)
+    except (EOFError, OSError) as error:
+        raise RuntimeError("PostgreSQL retrieval metadata is corrupt") from error
+    if len(raw) != int(descriptor.get("raw_bytes", -1)):
+        raise RuntimeError("PostgreSQL retrieval metadata length does not match")
+    if hashlib.sha256(raw).hexdigest() != descriptor.get("raw_sha256"):
+        raise RuntimeError("PostgreSQL retrieval metadata checksum does not match")
+    value = json.loads(raw.decode("utf-8"))
+    if not isinstance(value, dict):
+        raise RuntimeError("PostgreSQL retrieval metadata must be an object")
+    return value
+
+
 def _require_pool() -> Any:
     try:
         from psycopg_pool import ConnectionPool
@@ -84,6 +109,7 @@ class PostgresReadStore:
 
         ConnectionPool = _require_pool()
         self._acquire_timeout = acquire_timeout
+        self._retrieval_metadata_cache: Optional[Dict[str, Any]] = None
         self._pool = ConnectionPool(
             conninfo=dsn,
             min_size=min_size,
@@ -124,6 +150,7 @@ class PostgresReadStore:
             raise
 
     def close(self) -> None:
+        self._retrieval_metadata_cache = None
         self._pool.close()
 
     def initialize(self) -> None:
@@ -137,7 +164,15 @@ class PostgresReadStore:
                 migration = connection.execute(
                     """SELECT EXISTS(
                            SELECT 1 FROM hksr_meta.schema_migrations
-                           WHERE name = '005_m10_read_runtime.sql'
+                           WHERE name = '006_m10_chunked_retrieval_metadata.sql'
+                       ) AND EXISTS(
+                           SELECT 1 FROM hksr.retrieval_metadata m
+                           WHERE m.key = 'semantic'
+                             AND m.value->>'storage' = 'gzip_chunks_v1'
+                             AND (m.value->>'chunk_count')::integer = (
+                                 SELECT count(*) FROM hksr.retrieval_metadata_chunks c
+                                 WHERE c.metadata_key = m.key
+                             )
                        ) AS ready"""
                 ).fetchone()
                 latest = connection.execute(
@@ -149,7 +184,8 @@ class PostgresReadStore:
                 "backend": self.backend_name,
                 "ready": bool(migration and migration["ready"]),
                 "mutable": self.mutable,
-                "schema": "005_m10_read_runtime.sql" if migration and migration["ready"] else None,
+                "schema": "006_m10_chunked_retrieval_metadata.sql"
+                if migration and migration["ready"] else None,
                 "corpus_fingerprint": latest["source_fingerprint"] if latest else None,
                 "pool": {
                     "size": int(stats.get("pool_size", 0)),
@@ -278,11 +314,25 @@ class PostgresReadStore:
         return list(output.values())
 
     def retrieval_metadata(self) -> Dict[str, Any]:
+        if self._retrieval_metadata_cache is not None:
+            return self._retrieval_metadata_cache
         with self._connection() as connection:
             row = connection.execute(
                 "SELECT value FROM hksr.retrieval_metadata WHERE key='semantic'"
             ).fetchone()
-        return dict(row["value"]) if row else {}
+            if not row:
+                return {}
+            descriptor = dict(row["value"])
+            if descriptor.get("storage") != "gzip_chunks_v1":
+                self._retrieval_metadata_cache = descriptor
+                return descriptor
+            payload_rows = connection.execute(
+                """SELECT ordinal, payload FROM hksr.retrieval_metadata_chunks
+                   WHERE metadata_key='semantic' ORDER BY ordinal"""
+            ).fetchall()
+        metadata = _decode_chunked_metadata(descriptor, payload_rows)
+        self._retrieval_metadata_cache = metadata
+        return metadata
 
     def search(
         self, query: str, limit: int = 10,

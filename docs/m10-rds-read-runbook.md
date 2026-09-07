@@ -26,6 +26,7 @@
 以下语句只用于未来单独审核的永久清理，不属于应用故障回滚，也不得在正常切换时执行：
 
 ```sql
+DROP TABLE IF EXISTS hksr.retrieval_metadata_chunks;
 DROP TABLE IF EXISTS hksr.identity_names;
 DROP TABLE IF EXISTS hksr.playable_forms;
 DROP TABLE IF EXISTS hksr.narrative_people;
